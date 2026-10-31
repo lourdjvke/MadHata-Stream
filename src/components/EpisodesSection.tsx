@@ -135,11 +135,14 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
         id: mediaId,
         title: mediaTitle,
         type: 'series',
+        url: url,
         posterUrl: activeMedia?.poster,
         quality: 'HD',
         sub: title,
         label: `S${selectedSeason + 1}`,
         sizeMb: 520,
+        year: String(activeMedia?.year || '2026'),
+        synopsis: activeMedia?.synopsis
       });
 
       if (auth.currentUser?.uid) {

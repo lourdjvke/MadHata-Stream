@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { SvgDefs } from '../components/SvgDefs.tsx';
 import {
   fetchMediaDetails,
   getStoredActiveMedia,
@@ -885,13 +884,48 @@ export const PlayerPage: React.FC = () => {
     /* Dynamic Media Loading & Reload Resilience */
     const storedMedia = getStoredActiveMedia();
     const activeTargetUrl = targetUrl || storedMedia?.url || storedMedia?.original_url;
+    const mediaId = storedMedia?.id || storedMedia?.slug || (activeTargetUrl ? activeTargetUrl : 'HOUSES & DRAGONS');
 
-    if (activeTargetUrl) {
-      if (storedMedia && storedMedia.cleanTitle) {
-        mediaTitle = storedMedia.cleanTitle;
+    async function initializeMetadata() {
+      // Ensure service is initialized (crucial for offline)
+      await opfsService.whenReady();
+
+      // 1. Try to get metadata from OPFS first (Offline path)
+      const offlineMeta = await opfsService.getOfflineMetadata(mediaId);
+      if (offlineMeta) {
+        mediaTitle = offlineMeta.title || mediaTitle;
+        seasonLabel = offlineMeta.episode ? offlineMeta.episode.split(':')[0] : 'Season 1';
+        
+        if (offlineMeta.type === 'series') {
+          // For series, we might have multiple episodes in DoneDownloads
+          const stats = await opfsService.getStorageStats() as any;
+          const doneItem = stats.done?.find((d: any) => String(d.id) === String(mediaId));
+          if (doneItem && doneItem.eps) {
+            EPS = doneItem.eps.map((e: any) => e.sub);
+            VIDEO_URLS = doneItem.eps.map(() => ''); // Placeholders, will be resolved by resolveSource
+          }
+        } else {
+          EPS = [offlineMeta.subtitle || 'Movie'];
+          VIDEO_URLS = [''];
+        }
+        
+        ei = clamp(ei, 0, EPS.length - 1);
+        renderEpisodesDrawer();
+        mark();
+        const src = await resolveSource(ei);
+        if (src) {
+          v.src = src;
+        }
+        return;
       }
-      fetchMediaDetails({ url: activeTargetUrl, source: targetSource })
-        .then(async (details) => {
+
+      // 2. Online path
+      if (activeTargetUrl) {
+        if (storedMedia && storedMedia.cleanTitle) {
+          mediaTitle = storedMedia.cleanTitle;
+        }
+        try {
+          const details = await fetchMediaDetails({ url: activeTargetUrl, source: targetSource });
           if (isCancelled || !details) return;
           mediaTitle = decodeHtmlEntities(details.cleanTitle || details.title || mediaTitle);
           const sInfo = extractSeasonInfo(details.title || '', details.url);
@@ -913,16 +947,19 @@ export const PlayerPage: React.FC = () => {
           if (v.src !== activeVideoUrl) {
             v.src = activeVideoUrl;
           }
-        })
-        .catch(() => {
+        } catch (e) {
+          console.error('Failed to load online metadata', e);
           renderEpisodesDrawer();
           mark();
-        });
-    } else {
-      renderEpisodesDrawer();
-      mark();
-      v.src = DEFAULT_SRC;
+        }
+      } else {
+        renderEpisodesDrawer();
+        mark();
+        v.src = DEFAULT_SRC;
+      }
     }
+
+    initializeMetadata();
 
     renderEpisodesDrawer();
     mark();
@@ -983,7 +1020,6 @@ export const PlayerPage: React.FC = () => {
 
   return (
     <>
-      <SvgDefs />
       <div className="pl" id="pl" data-p="0">
         <video id="v" playsInline preload="auto" />
         <div className="surf" id="surf" />

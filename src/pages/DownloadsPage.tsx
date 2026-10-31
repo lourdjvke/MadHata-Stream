@@ -124,30 +124,53 @@ export const DownloadsPage: React.FC = () => {
     });
   };
 
-  const handlePlayMedia = (title: string) => {
-    navigate('/watch', { state: { title, isOffline: true } });
+  const handlePlayMedia = (mediaId: string | number, item: any, epIndex?: number) => {
+    // Store as active media so PlayerPage knows what we are playing
+    const mediaItem = {
+      id: mediaId,
+      title: item.t,
+      cleanTitle: item.t,
+      poster: item.posterUrl,
+      type: item.type,
+      year: item.year,
+      synopsis: item.synopsis
+    };
+    
+    try {
+      sessionStorage.setItem('slothui_active_media', JSON.stringify(mediaItem));
+    } catch {}
+
+    const search = epIndex !== undefined ? `?ep=${epIndex}` : '';
+    navigate(`/watch${search}`, { state: { isOffline: true } });
   };
 
   const otherPercent = Math.min(100, (stats.otherMb / (stats.totalMb || 1)) * 100);
   const dlPercent = Math.min(100, (stats.downloadsMb / (stats.totalMb || 1)) * 100);
 
   return (
-    <div className="min-h-screen bg-[#0b0e16] text-white font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-[#0b0e16] text-white font-['Plus_Jakarta_Sans',sans-serif] pb-24">
       <PWAInstallStrip />
       <NavigationRail />
 
       {/* Top Header */}
       <header className="top rv" style={{ '--n': 0 } as React.CSSProperties}>
-        <button className="bk" aria-label="Back" onClick={() => navigate(-1)}>
+        <button 
+          className="ic bk" 
+          aria-label="Back" 
+          onClick={() => navigate(-1)}
+          style={{ position: 'absolute', left: 'calc(var(--rail) + 1.25rem)', zIndex: 10 }}
+        >
           <svg className="i">
             <use href="#al" />
           </svg>
         </button>
-        <h1>Downloads</h1>
-        <span aria-hidden="true"></span>
+        <div className="brand" style={{ position: 'static', transform: 'none', margin: '0 auto' }}>
+          <span className="logo" style={{ width: '1.8rem', height: '1.8rem', fontSize: '0.9rem' }}>M</span>
+          <span>Mad<b>Hata</b> Downloads</span>
+        </div>
       </header>
 
-      <main>
+      <main style={{ maxWidth: '82rem', margin: '0 auto' }}>
         {/* Storage Bar Section */}
         <section className="stg rv" style={{ '--n': 1 } as React.CSSProperties} id="stg" aria-label="Storage">
           <div className="l">
@@ -167,14 +190,16 @@ export const DownloadsPage: React.FC = () => {
         {/* Content Section */}
         <div className="ct rv" style={{ '--n': 2 } as React.CSSProperties} id="ct">
           {activeList.length === 0 && doneList.length === 0 ? (
-            <div className="empty">
-              <div className="big">
-                <svg className="i">
+            <div className="empty" style={{ marginTop: '5rem' }}>
+              <div className="big" style={{ width: '5rem', height: '5rem', border: '2px solid rgba(255,255,255,0.15)' }}>
+                <svg className="i" style={{ width: '2.2rem', height: '2.2rem', color: 'rgba(255,255,255,0.4)' }}>
                   <use href="#dl" />
                 </svg>
               </div>
-              <h3>No downloads yet</h3>
-              <p>Titles you download will show up here so you can watch them offline using OPFS.</p>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '1rem' }}>No downloads yet</h3>
+              <p style={{ maxWidth: '20rem', margin: '0.6rem auto', opacity: 0.6, fontSize: '0.88rem' }}>
+                Titles you download will show up here so you can watch them offline anytime.
+              </p>
             </div>
           ) : (
             <>
@@ -298,7 +323,7 @@ export const DownloadsPage: React.FC = () => {
                               <span className="ac">
                                 <button
                                   className="ib pr"
-                                  onClick={() => handlePlayMedia(m.t)}
+                                  onClick={() => handlePlayMedia(m.id, m)}
                                   aria-label={`Play ${m.t}`}
                                 >
                                   <svg className="i">
@@ -390,7 +415,7 @@ export const DownloadsPage: React.FC = () => {
                                   </span>
                                   <button
                                     className="ib pr"
-                                    onClick={() => handlePlayMedia(`${s.t} - ${ep.sub}`)}
+                                    onClick={() => handlePlayMedia(s.id, s, j)}
                                     aria-label={`Play ${ep.sub}`}
                                   >
                                     <svg className="i">

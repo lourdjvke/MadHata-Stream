@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.tsx';
 import { NavigationRail } from '../components/NavigationRail.tsx';
-import { SvgDefs } from '../components/SvgDefs.tsx';
 import { 
   WatchlistItem, 
   HistoryItem, 
@@ -189,7 +188,6 @@ export const ProfilePage: React.FC = () => {
 
   return (
     <div className="profile-page-root">
-      <SvgDefs />
       <NavigationRail onHomeClick={() => navigate('/')} />
 
       {/* Top Header Bar */}

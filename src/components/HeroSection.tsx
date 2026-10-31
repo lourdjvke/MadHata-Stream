@@ -233,21 +233,26 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ isTasteInView }) => {
     if (opfsService.isDownloading(mediaId)) return;
 
     try {
+      const downloadUrl = currentActiveMedia.downloads?.[0]?.url || currentActiveMedia.url || currentActiveMedia.original_url || '';
+      
       await opfsService.startDownload({
         id: mediaId,
         title,
         type: currentActiveMedia.downloads?.length ? 'series' : 'movie',
+        url: downloadUrl,
         posterUrl: currentActiveMedia.poster,
         quality: 'HD',
         sub: currentActiveMedia.downloads?.length ? 'Episode 1' : 'Movie',
         sizeMb: currentActiveMedia.downloads?.length ? 650 : 1400,
+        year: String(currentActiveMedia.year || '2026'),
+        synopsis: currentActiveMedia.synopsis
       });
 
       if (user?.uid) {
         recordDownload(user.uid, {
           id: mediaId,
           title,
-          url: currentActiveMedia.url || '',
+          url: downloadUrl,
         });
       }
     } catch (err: any) {

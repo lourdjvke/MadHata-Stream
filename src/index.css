@@ -2155,10 +2155,10 @@ h1 {
 .top h1{font-size:1.1rem;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ib{display:grid;place-items:center;width:3.6rem;height:3.6rem;border-radius:50%;transition:transform .4s var(--ease),background .3s,opacity .3s}
 .ib:hover{background:rgba(255,255,255,0.14);transform:scale(1.08)}.ib:active{transform:scale(0.9)}
-.ib .i{width:1.8rem;height:1.8rem}
+.ib .i{width:2.2rem;height:2.2rem}
 .mid{flex:1;display:flex;align-items:center;justify-content:center;gap:clamp(2rem,14vw,12rem);min-height:0}
-.mid .rw .i,.mid .fw .i{width:3.6rem;height:3.6rem;stroke-width:1.5}.mid .ib{width:5.4rem;height:5.4rem}
-.big .i{width:4.2rem;height:4.2rem;stroke:none;fill:#fff;transition:opacity .2s}
+.mid .rw .i,.mid .fw .i{width:4.2rem;height:4.2rem;stroke-width:1.3}.mid .ib{width:6.2rem;height:6.2rem}
+.big .i{width:4.8rem;height:4.8rem;stroke:none;fill:#fff;transition:opacity .2s}
 .big .xp{display:none}[data-p="1"] .big .xp{display:block}[data-p="1"] .big .xl{display:none}
 .bot{position:relative;padding:0 max(1.2rem,env(safe-area-inset-right)) max(.6rem,env(safe-area-inset-bottom)) max(1.2rem,env(safe-area-inset-left))}
 .pr{display:flex;align-items:center;gap:1rem}
@@ -2199,8 +2199,8 @@ h1 {
    Downloads Page Specific Styles
    ========================================================================== */
 .stg {
-  padding: clamp(1.5rem, 4svh, 2.6rem) var(--g) 0 calc(var(--rail) + var(--g));
-  max-width: calc(60rem + var(--rail) + var(--g));
+  padding: clamp(1.2rem, 3svh, 2rem) var(--g) 0 calc(var(--rail) + var(--g));
+  max-width: calc(64rem + var(--rail) + var(--g));
 }
 
 .stg .l {
@@ -2240,7 +2240,7 @@ h1 {
 }
 
 .ct {
-  padding: 0 0 clamp(2.5rem, 7svh, 5rem) calc(var(--rail) + var(--g));
+  padding: 0 var(--g) clamp(2.5rem, 7svh, 5rem) calc(var(--rail) + var(--g));
 }
 
 .sh {

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NavigationRail } from '../components/NavigationRail.tsx';
-import { SvgDefs } from '../components/SvgDefs.tsx';
 import { SearchHeader } from '../components/SearchHeader.tsx';
 import {
   CATEGORIES,
@@ -303,7 +302,6 @@ export const SearchPage: React.FC = () => {
 
   return (
     <>
-      <SvgDefs />
       <NavigationRail />
       <SearchHeader />
 

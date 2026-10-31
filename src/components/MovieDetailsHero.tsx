@@ -112,22 +112,30 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
     if (opfsService.isDownloading(currentId)) return;
 
     try {
+      const downloads = activeMedia?.downloads;
+      const currentEpIndex = currentEpisode[1];
+      const downloadItem = (downloads && downloads.length > currentEpIndex) ? downloads[currentEpIndex] : downloads?.[0];
+      const downloadUrl = downloadItem?.url || activeMedia?.url || activeMedia?.original_url || '';
+
       await opfsService.startDownload({
         id: currentId,
         title: heroTitle,
         type: activeMedia?.downloads?.length ? 'series' : 'movie',
+        url: downloadUrl,
         posterUrl: activeMedia?.poster,
         quality: 'HD',
         sub: activeMedia?.downloads?.length ? `S${displaySeason}:E${i + 1}` : 'Movie',
         label: activeMedia?.downloads?.length ? `S${displaySeason}:E${i + 1}` : '',
         sizeMb: activeMedia?.downloads?.length ? 550 : 1600,
+        year: String(heroYear || '2026'),
+        synopsis: activeMedia?.synopsis
       });
 
       if (user?.uid) {
         recordDownload(user.uid, {
           id: currentId,
           title: heroTitle,
-          url: activeMedia?.url || '',
+          url: downloadUrl,
         });
       }
     } catch (err: any) {

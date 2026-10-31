@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { NavigationRail } from '../components/NavigationRail.tsx';
-import { SvgDefs } from '../components/SvgDefs.tsx';
 import { MovieDetailsHero } from '../components/MovieDetailsHero.tsx';
 import { EpisodesSection } from '../components/EpisodesSection.tsx';
 import { SimilarMoviesSection } from '../components/SimilarMoviesSection.tsx';
@@ -78,7 +77,6 @@ export const MovieDetailsPage: React.FC = () => {
 
   return (
     <>
-      <SvgDefs />
       <NavigationRail />
       <main>
         <MovieDetailsHero

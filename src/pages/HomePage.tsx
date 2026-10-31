@@ -4,7 +4,6 @@ import { HeroSection } from '../components/HeroSection.tsx';
 import { AggregatedMediaSection } from '../components/AggregatedMediaSection.tsx';
 import { RecentlyWatchedSection } from '../components/RecentlyWatchedSection.tsx';
 import { TasteCarousel } from '../components/TasteCarousel.tsx';
-import { SvgDefs } from '../components/SvgDefs.tsx';
 
 export const HomePage: React.FC = () => {
   const [isTasteInView, setIsTasteInView] = useState(false);
@@ -22,7 +21,6 @@ export const HomePage: React.FC = () => {
 
   return (
     <>
-      <SvgDefs />
       <NavigationRail onHomeClick={handleHomeClick} />
       <main>
         <HeroSection onSeeAllClick={handleSeeAll} isTasteInView={isTasteInView} />

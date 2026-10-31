@@ -1,6 +1,6 @@
 /**
  * OPFS (Origin Private File System) Download & Storage Manager
- * Uses browser navigator.storage.getDirectory() for high-performance offline media storage.
+ * Uses browser navigator.storage.getDirectory() for real high-performance offline media storage.
  */
 
 export interface ActiveDownload {
@@ -15,8 +15,10 @@ export interface ActiveDownload {
   q: string; // Quality (HD, 4K)
   k: number; // Thumbnail color key
   posterUrl?: string;
-  mediaId?: string | number;
-  type?: 'movie' | 'series';
+  mediaId: string | number;
+  type: 'movie' | 'series';
+  abortController?: AbortController;
+  url: string;
 }
 
 export interface EpisodeDownload {
@@ -24,22 +26,24 @@ export interface EpisodeDownload {
   sub: string; // Episode name
   mb: number;
   exp: number; // Days until expiration
-  mediaId?: string | number;
-  streamPath?: string;
+  mediaId: string | number;
+  folderName: string;
 }
 
 export interface DoneSeriesDownload {
-  id: string | number;
+  id: string | number; // This is the mediaId
   type: 'series';
   t: string;
   q: string;
   k: number;
   posterUrl?: string;
   eps: EpisodeDownload[];
+  year?: string;
+  synopsis?: string;
 }
 
 export interface DoneMovieDownload {
-  id: string | number;
+  id: string | number; // This is the mediaId
   type: 'movie';
   t: string;
   sub: string;
@@ -48,7 +52,9 @@ export interface DoneMovieDownload {
   q: string;
   k: number;
   posterUrl?: string;
-  streamPath?: string;
+  folderName: string;
+  year?: string;
+  synopsis?: string;
 }
 
 export type DoneDownload = DoneSeriesDownload | DoneMovieDownload;
@@ -67,22 +73,15 @@ class OPFSService {
   private doneDownloads: DoneDownload[] = [];
   private listeners: Set<StorageListener> = new Set();
   private toastListeners: Set<(msg: string) => void> = new Set();
-  private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private isInitialized = false;
-
-  public subscribeToast(fn: (msg: string) => void) {
-    this.toastListeners.add(fn);
-    return () => {
-      this.toastListeners.delete(fn);
-    };
-  }
-
-  public emitToast(msg: string) {
-    this.toastListeners.forEach((fn) => fn(msg));
-  }
+  private readyPromise: Promise<void>;
 
   constructor() {
-    this.init();
+    this.readyPromise = this.init();
+  }
+
+  public async whenReady(): Promise<void> {
+    return this.readyPromise;
   }
 
   public isSupported(): boolean {
@@ -102,7 +101,6 @@ class OPFSService {
 
   public async init() {
     if (this.isInitialized) return;
-    this.isInitialized = true;
 
     try {
       const dir = await this.getDownloadsDir();
@@ -113,7 +111,8 @@ class OPFSService {
           const text = await file.text();
           if (text) {
             const data = JSON.parse(text);
-            this.activeDownloads = data.active || [];
+            // Abort controllers cannot be serialized, so they stay undefined/null on reload
+            this.activeDownloads = (data.active || []).map((a: any) => ({ ...a, st: 'pz' }));
             this.doneDownloads = data.done || [];
           }
         } catch {
@@ -124,7 +123,7 @@ class OPFSService {
       console.warn('Failed to initialize OPFS storage manifest:', err);
     }
 
-    this.startProgressTicker();
+    this.isInitialized = true;
     this.notify();
   }
 
@@ -133,10 +132,11 @@ class OPFSService {
       const dir = await this.getDownloadsDir();
       if (dir) {
         const fileHandle = await dir.getFileHandle('manifest.json', { create: true });
-        // Access writable stream or FileSystemWritableFileStream
         const writable = await fileHandle.createWritable();
+        // Remove non-serializable fields before saving
+        const serializableActive = this.activeDownloads.map(({ abortController, ...rest }) => ({ ...rest, st: 'pz' }));
         const json = JSON.stringify({
-          active: this.activeDownloads,
+          active: serializableActive,
           done: this.doneDownloads,
         });
         await writable.write(json);
@@ -148,8 +148,9 @@ class OPFSService {
   }
 
   public async getStorageStats(): Promise<StorageStats> {
-    const DEFAULT_TOTAL = 64 * 1024; // 64 GB
-    const DEFAULT_OTHER = 38.4 * 1024; // 38.4 GB
+    await this.whenReady();
+    const DEFAULT_TOTAL = 64 * 1024;
+    const DEFAULT_OTHER = 38.4 * 1024;
 
     let downloadsMb = 0;
     this.doneDownloads.forEach((d) => {
@@ -198,6 +199,17 @@ class OPFSService {
     };
   }
 
+  public subscribeToast(fn: (msg: string) => void) {
+    this.toastListeners.add(fn);
+    return () => {
+      this.toastListeners.delete(fn);
+    };
+  }
+
+  private emitToast(msg: string) {
+    this.toastListeners.forEach((fn) => fn(msg));
+  }
+
   private async notify() {
     const stats = await this.getStorageStats();
     this.listeners.forEach((fn) => fn([...this.activeDownloads], [...this.doneDownloads], stats));
@@ -206,122 +218,337 @@ class OPFSService {
   public async startDownload(media: {
     id: string | number;
     title: string;
-    type?: 'movie' | 'series';
+    type: 'movie' | 'series';
+    url: string;
     quality?: string;
     posterUrl?: string;
     sub?: string;
     label?: string;
     sizeMb?: number;
     k?: number;
-  }) {
+    year?: string;
+    synopsis?: string;
+  }, uid?: string) {
+    await this.whenReady();
+    if (!media.url) throw new Error('No download URL provided.');
+
     const stats = await this.getStorageStats();
+    // Use content-length if possible, but for start let's assume size
     const estSize = media.sizeMb || (media.type === 'series' ? 650 : 1500);
 
-    // Check available space
-    if (stats.freeMb < estSize / 1024 + 10) {
-      throw new Error(`Storage limit exceeded! Free space (${stats.freeMb.toFixed(1)} MB) is lower than required size (${estSize} MB).`);
+    if (stats.freeMb < estSize) {
+      throw new Error(`Insufficient storage! Need ${estSize.toFixed(1)} MB, but only ${stats.freeMb.toFixed(1)} MB free.`);
     }
 
     const newId = Date.now();
-    const k = media.k ?? Math.floor(Math.random() * 8);
-
     const activeItem: ActiveDownload = {
       id: newId,
-      t: media.title,
-      l: media.label || (media.type === 'series' ? 'S1:E1' : ''),
-      sub: media.sub || (media.type === 'series' ? 'Episode 1' : 'Movie'),
-      mb: estSize,
-      p: 0.05,
-      st: 'dl',
-      spd: Math.floor(Math.random() * 10) + 15, // 15-25 MB/s
-      q: media.quality || 'HD',
-      k,
-      posterUrl: media.posterUrl,
       mediaId: media.id,
-      type: media.type || 'movie',
+      t: media.title,
+      l: media.label || '',
+      sub: media.sub || (media.type === 'series' ? 'Episode' : 'Movie'),
+      mb: estSize,
+      p: 0,
+      st: 'dl',
+      spd: 0,
+      q: media.quality || 'HD',
+      k: media.k ?? Math.floor(Math.random() * 8),
+      posterUrl: media.posterUrl,
+      type: media.type,
+      url: media.url,
+      abortController: new AbortController()
     };
 
     this.activeDownloads.unshift(activeItem);
-    await this.persistManifest();
-
-    this.emitToast(`Downloading "${media.title}" in background. View progress in Downloads tab.`);
-
-    // Create OPFS storage file placeholder for the media stream
-    try {
-      const dir = await this.getDownloadsDir();
-      if (dir) {
-        const folderName = `${media.type || 'movie'}_${media.id}_${newId}`;
-        const itemDir = await dir.getDirectoryHandle(folderName, { create: true });
-        const streamFile = await itemDir.getFileHandle('stream.bin', { create: true });
-        const writable = await streamFile.createWritable();
-        // Write initial chunk buffer
-        const headerText = new TextEncoder().encode(`MADHATA_MEDIA_STREAM:${media.title}:${activeItem.sub}`);
-        await writable.write(headerText);
-        await writable.close();
-      }
-    } catch (e) {
-      console.warn('OPFS file creation handle error:', e);
-    }
-
     this.notify();
+    this.persistManifest();
+
+    // Record in Firebase RTDB
+    import('./userDataService.ts').then(m => {
+      m.recordDownload(uid, { id: String(media.id), title: media.title, url: media.url });
+    });
+
+    // Actual background fetching logic
+    this.runDownloadTask(activeItem, media);
+
     return activeItem;
   }
 
-  public async pauseDownload(id: string | number) {
-    const item = this.activeDownloads.find((x) => x.id === id);
-    if (item) {
-      item.st = 'pz';
-      await this.persistManifest();
+  private async runDownloadTask(item: ActiveDownload, media: any) {
+    try {
+      const response = await fetch(item.url, { signal: item.abortController?.signal });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.body) throw new Error('ReadableStream not supported.');
+
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : item.mb * 1024 * 1024;
+      item.mb = Math.round(totalBytes / (1024 * 1024) * 10) / 10;
+
+      const dir = await this.getDownloadsDir();
+      if (!dir) throw new Error('OPFS access failed.');
+
+      const folderName = `${item.type}_${item.mediaId}_${item.id}`;
+      const itemDir = await dir.getDirectoryHandle(folderName, { create: true });
+      const streamFile = await itemDir.getFileHandle('stream.bin', { create: true });
+      const writable = await streamFile.createWritable();
+
+      const reader = response.body.getReader();
+      let downloadedBytes = 0;
+      let lastTime = performance.now();
+      let lastBytes = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        await writable.write(value);
+        downloadedBytes += value.length;
+
+        const now = performance.now();
+        if (now - lastTime > 1000) {
+          const delta = (downloadedBytes - lastBytes) / (1024 * 1024); // MB
+          item.spd = Math.round(delta * 10) / 10;
+          item.p = downloadedBytes / totalBytes;
+          lastTime = now;
+          lastBytes = downloadedBytes;
+          this.notify();
+        }
+      }
+
+      await writable.close();
+      
+      // Save metadata for offline usage
+      const metaHandle = await itemDir.getFileHandle('metadata.json', { create: true });
+      const metaWritable = await metaHandle.createWritable();
+      const metadata = {
+        id: item.mediaId,
+        title: item.t,
+        year: media.year || '2026',
+        synopsis: media.synopsis || '',
+        posterUrl: item.posterUrl,
+        type: item.type,
+        quality: item.q,
+        episode: item.l,
+        subtitle: item.sub,
+        mb: item.mb,
+        downloadedAt: Date.now()
+      };
+      await metaWritable.write(JSON.stringify(metadata));
+      await metaWritable.close();
+
+      // Download complete - move to done
+      this.activeDownloads = this.activeDownloads.filter(a => a.id !== item.id);
+      
+      const ep: EpisodeDownload = {
+        l: item.l || 'S1:E1',
+        sub: item.sub || 'Episode',
+        mb: item.mb,
+        exp: 30,
+        mediaId: item.mediaId,
+        folderName
+      };
+
+      if (item.type === 'series') {
+        const existing = this.doneDownloads.find(d => String(d.id) === String(item.mediaId) && d.type === 'series') as DoneSeriesDownload;
+        if (existing) {
+          existing.eps.push(ep);
+        } else {
+          this.doneDownloads.unshift({
+            id: item.mediaId,
+            type: 'series',
+            t: item.t,
+            q: item.q,
+            k: item.k,
+            posterUrl: item.posterUrl,
+            year: media.year,
+            synopsis: media.synopsis,
+            eps: [ep]
+          });
+        }
+      } else {
+        this.doneDownloads.unshift({
+          id: item.mediaId,
+          type: 'movie',
+          t: item.t,
+          sub: item.sub,
+          mb: item.mb,
+          exp: 30,
+          q: item.q,
+          k: item.k,
+          posterUrl: item.posterUrl,
+          folderName,
+          year: media.year,
+          synopsis: media.synopsis
+        });
+      }
+
+      this.persistManifest();
       this.notify();
+      this.emitToast(`Downloaded: "${item.t}"`);
+
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // No toast for cancellation as requested
+      } else {
+        console.error('Download task failed:', err);
+        this.emitToast(`Error downloading "${item.t}": ${err.message}`);
+      }
+      this.activeDownloads = this.activeDownloads.filter(a => a.id !== item.id);
+      this.notify();
+      this.persistManifest();
+    }
+  }
+
+  public async pauseDownload(id: string | number) {
+    await this.whenReady();
+    const item = this.activeDownloads.find(a => a.id === id);
+    if (item && item.st === 'dl') {
+      item.st = 'pz';
+      if (item.abortController) {
+        item.abortController.abort();
+      }
+      this.notify();
+      this.persistManifest();
     }
   }
 
   public async resumeDownload(id: string | number) {
-    const item = this.activeDownloads.find((x) => x.id === id);
-    if (item) {
+    await this.whenReady();
+    const item = this.activeDownloads.find(a => a.id === id);
+    if (item && item.st === 'pz') {
       item.st = 'dl';
-      await this.persistManifest();
+      item.abortController = new AbortController();
+      // Re-run task
+      this.runDownloadTask(item, {
+        year: '2026',
+        synopsis: ''
+      });
       this.notify();
+      this.persistManifest();
     }
   }
 
   public async cancelDownload(id: string | number) {
-    this.activeDownloads = this.activeDownloads.filter((x) => x.id !== id);
-    await this.persistManifest();
+    await this.whenReady();
+    const item = this.activeDownloads.find(a => a.id === id);
+    if (item?.abortController) {
+      item.abortController.abort();
+    }
+    this.activeDownloads = this.activeDownloads.filter(a => a.id !== id);
     this.notify();
+    this.persistManifest();
+  }
+
+  public async getPlaybackUrl(mediaId: string | number, type: 'movie' | 'series', epIndex?: number): Promise<string | null> {
+    await this.whenReady();
+    try {
+      const dir = await this.getDownloadsDir();
+      if (!dir) return null;
+
+      const doneItem = this.doneDownloads.find(d => String(d.id) === String(mediaId));
+      if (!doneItem) return null;
+
+      let folderName = '';
+      if (doneItem.type === 'series') {
+        const ep = doneItem.eps[epIndex ?? 0];
+        if (!ep) return null;
+        folderName = ep.folderName;
+      } else {
+        folderName = doneItem.folderName;
+      }
+
+      try {
+        const itemDir = await dir.getDirectoryHandle(folderName);
+        const streamFile = await itemDir.getFileHandle('stream.bin');
+        const file = await streamFile.getFile();
+        return URL.createObjectURL(file);
+      } catch (e) {
+        console.warn('Could not find stream.bin in folder:', folderName, e);
+        return null;
+      }
+    } catch (err) {
+      console.warn('Failed to get playback URL from OPFS:', err);
+      return null;
+    }
+  }
+
+  public async getOfflineMetadata(mediaId: string | number): Promise<any | null> {
+    await this.whenReady();
+    try {
+      const doneItem = this.doneDownloads.find(d => String(d.id) === String(mediaId));
+      if (!doneItem) return null;
+
+      const dir = await this.getDownloadsDir();
+      if (!dir) return null;
+
+      const folderName = doneItem.type === 'series' ? doneItem.eps[0].folderName : doneItem.folderName;
+      const itemDir = await dir.getDirectoryHandle(folderName);
+      const metaHandle = await itemDir.getFileHandle('metadata.json');
+      const file = await metaHandle.getFile();
+      const text = await file.text();
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  public isDownloading(mediaId: string | number): boolean {
+    return this.activeDownloads.some(a => String(a.mediaId) === String(mediaId));
+  }
+
+  public getDownloadProgress(mediaId: string | number): number {
+    const item = this.activeDownloads.find(a => String(a.mediaId) === String(mediaId));
+    return item ? item.p : 0;
   }
 
   public async deleteDoneDownload(id: string | number, epIndex?: number) {
+    await this.whenReady();
     const dIndex = this.doneDownloads.findIndex((x) => x.id === id);
     if (dIndex === -1) return;
 
     const target = this.doneDownloads[dIndex];
+    let folderToDelete = '';
+
     if (target.type === 'series' && epIndex !== undefined && target.eps.length > 1) {
+      folderToDelete = target.eps[epIndex].folderName;
       target.eps.splice(epIndex, 1);
     } else {
-      this.doneDownloads.splice(dIndex, 1);
-
-      // Clean up OPFS folder
-      try {
-        const dir = await this.getDownloadsDir();
-        if (dir) {
-          const folderName = `${target.type}_${target.id}`;
-          try {
-            await dir.removeEntry(folderName, { recursive: true });
-          } catch {
-            // Folder might not exist
-          }
+      if (target.type === 'series') {
+        for (const ep of target.eps) {
+           await this.deleteOpfsFolder(ep.folderName);
         }
-      } catch (err) {
-        console.warn('Error removing OPFS folder:', err);
+      } else {
+        folderToDelete = target.folderName;
       }
+      this.doneDownloads.splice(dIndex, 1);
+    }
+
+    if (folderToDelete) {
+      await this.deleteOpfsFolder(folderToDelete);
     }
 
     await this.persistManifest();
     this.notify();
   }
 
+  private async deleteOpfsFolder(name: string) {
+    try {
+      const dir = await this.getDownloadsDir();
+      if (dir) {
+        await dir.removeEntry(name, { recursive: true });
+      }
+    } catch {}
+  }
+
   public async deleteAllDoneDownloads() {
+    await this.whenReady();
+    for (const d of this.doneDownloads) {
+      if (d.type === 'series') {
+        for (const ep of d.eps) await this.deleteOpfsFolder(ep.folderName);
+      } else {
+        await this.deleteOpfsFolder(d.folderName);
+      }
+    }
     this.doneDownloads = [];
     await this.persistManifest();
     this.notify();
@@ -332,117 +559,6 @@ class OPFSService {
     this.doneDownloads = doneSnap;
     this.persistManifest();
     this.notify();
-  }
-
-  public async getPlaybackUrl(id: string | number, type: 'movie' | 'series', epIndex?: number): Promise<string | null> {
-    try {
-      const dir = await this.getDownloadsDir();
-      if (!dir) return null;
-
-      const doneItem = this.doneDownloads.find(d => d.id === id);
-      if (!doneItem) return null;
-
-      let folderName = '';
-      if (type === 'series' && doneItem.type === 'series') {
-        folderName = `series_${id}`;
-      } else {
-        folderName = `movie_${id}`;
-      }
-
-      // In this simulated environment, we might just return the original URL if we didn't actually download 100% of bytes
-      // But for "offline" demo, we need to show we can get a Blob from OPFS.
-      try {
-        const itemDir = await dir.getDirectoryHandle(folderName);
-        const streamFile = await itemDir.getFileHandle('stream.bin');
-        const file = await streamFile.getFile();
-        return URL.createObjectURL(file);
-      } catch {
-        return null;
-      }
-    } catch (err) {
-      console.warn('Failed to get playback URL from OPFS:', err);
-      return null;
-    }
-  }
-
-  public isDownloading(mediaId: string | number): boolean {
-    return this.activeDownloads.some(a => a.mediaId === mediaId);
-  }
-
-  public getDownloadProgress(mediaId: string | number): number {
-    const item = this.activeDownloads.find(a => a.mediaId === mediaId);
-    return item ? item.p : 0;
-  }
-
-  private startProgressTicker() {
-    if (this.intervalTimer) return;
-    this.intervalTimer = setInterval(() => {
-      let changed = false;
-      let finishedItem: ActiveDownload | null = null;
-
-      this.activeDownloads.forEach((a) => {
-        if (a.st !== 'dl') return;
-        // Simulate download speed: increase progress
-        a.p = Math.min(1, a.p + (a.spd * 0.5) / a.mb);
-        changed = true;
-        if (a.p >= 1 && !finishedItem) {
-          finishedItem = a;
-        }
-      });
-
-      if (finishedItem) {
-        const a: ActiveDownload = finishedItem;
-        this.activeDownloads = this.activeDownloads.filter((x) => x.id !== a.id);
-
-        const ep: EpisodeDownload = {
-          l: a.l || 'S1:E1',
-          sub: a.sub || 'Episode',
-          mb: a.mb,
-          exp: 30,
-          mediaId: a.mediaId
-        };
-
-        if (a.type === 'series' || a.l) {
-          const existingSeries = this.doneDownloads.find(
-            (x) => x.type === 'series' && x.t === a.t
-          ) as DoneSeriesDownload | undefined;
-
-          if (existingSeries) {
-            existingSeries.eps.push(ep);
-          } else {
-            const newSeries: DoneSeriesDownload = {
-              id: a.mediaId || Date.now(),
-              type: 'series',
-              t: a.t,
-              q: a.q,
-              k: a.k,
-              posterUrl: a.posterUrl,
-              eps: [ep],
-            };
-            this.doneDownloads.unshift(newSeries);
-          }
-        } else {
-          const newMovie: DoneMovieDownload = {
-            id: a.mediaId || Date.now(),
-            type: 'movie',
-            t: a.t,
-            sub: a.sub || 'Movie',
-            mb: a.mb,
-            exp: 30,
-            q: a.q,
-            k: a.k,
-            posterUrl: a.posterUrl,
-          };
-          this.doneDownloads.unshift(newMovie);
-        }
-
-        this.persistManifest();
-      }
-
-      if (changed) {
-        this.notify();
-      }
-    }, 500);
   }
 }
 
