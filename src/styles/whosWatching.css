@@ -1,0 +1,640 @@
+@property --c1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #2f7cf6;
+}
+@property --c2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0d3fc4;
+}
+
+.whos-watching-root {
+  --bg: #0b0e16;
+  --acc: #5b4ee8;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --av: clamp(6rem, 24svh, 12rem);
+  position: relative;
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background-color: #0b0e16 !important;
+  background: #0b0e16 !important;
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  font-size: clamp(14px, .4vw + 10.2px, 30px);
+}
+
+.whos-watching-root * {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.whos-watching-root button,
+.whos-watching-root input {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.whos-watching-root button {
+  cursor: pointer;
+}
+
+.whos-watching-root :focus-visible {
+  outline: 2px solid #9d94ff;
+  outline-offset: 3px;
+}
+
+.whos-watching-root .i {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+@keyframes up {
+  from {
+    opacity: 0;
+    transform: translateY(1.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes sp {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* top bar */
+.whos-watching-root .bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 1.2rem clamp(1.2rem, 4vw, 4.5rem) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  height: auto !important;
+  overflow: visible !important;
+  width: 100% !important;
+  animation: up .9s var(--ease) both;
+}
+
+.whos-watching-root .brand {
+  position: static !important;
+  transform: none !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: .6rem !important;
+  font-size: 1.1rem !important;
+  font-weight: 300 !important;
+  color: #fff !important;
+}
+
+.whos-watching-root .brand b {
+  font-weight: 800;
+}
+
+.whos-watching-root .logo {
+  width: 1.8rem !important;
+  height: 1.8rem !important;
+  border-radius: .55rem !important;
+  background: linear-gradient(135deg, #7f63ff, #3b2fd0) !important;
+  display: grid !important;
+  place-items: center !important;
+  font-weight: 800 !important;
+  font-size: 1rem !important;
+  color: #fff !important;
+}
+
+.whos-watching-root .tb {
+  padding: .55rem 1.25rem !important;
+  border-radius: 99px !important;
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  font-size: .85rem !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  background: transparent !important;
+  transition: border-color .3s, background .3s, transform .4s var(--ease) !important;
+}
+
+.whos-watching-root .tb:hover {
+  border-color: rgba(255, 255, 255, .6) !important;
+  background: rgba(255, 255, 255, .06) !important;
+  transform: translateY(-2px) !important;
+}
+
+.whos-watching-root .tb:active {
+  transform: scale(.96) !important;
+}
+
+/* stage */
+.whos-watching-root main {
+  flex: 1;
+  display: grid !important;
+  place-items: center !important;
+  padding: .5rem 1.2rem clamp(2rem, 8svh, 5rem);
+  width: 100%;
+}
+
+.whos-watching-root .stage {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  height: auto !important;
+  perspective: none !important;
+  touch-action: auto !important;
+  cursor: default !important;
+  user-select: auto !important;
+  width: min(100%, 27rem) !important;
+  display: grid !important;
+  justify-items: center !important;
+  text-align: center !important;
+}
+
+.whos-watching-root .avw {
+  position: relative;
+  width: var(--av);
+  height: var(--av);
+  margin-bottom: clamp(1.2rem, 4svh, 2.2rem);
+  animation: up 1s var(--ease) .1s both;
+}
+
+.whos-watching-root .glow {
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: var(--c1, #2f7cf6);
+  filter: blur(3.4rem);
+  opacity: .28;
+  transition: --c1 .7s, background .7s;
+  pointer-events: none;
+}
+
+.whos-watching-root .avb {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 22%;
+  transition: transform .5s var(--ease), --c1 .7s, --c2 .7s;
+}
+
+.whos-watching-root .avb:hover {
+  transform: scale(1.05) rotate(-2deg);
+}
+
+.whos-watching-root .avb:active {
+  transform: scale(.95);
+}
+
+.whos-watching-root .avb svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  border-radius: 22%;
+  box-shadow: 0 1.6rem 3.4rem -1.2rem rgba(0, 0, 0, .8);
+}
+
+.whos-watching-root .eyes {
+  transition: transform .4s var(--ease);
+  transform: translate(var(--lx, 0px), var(--ly, 0px));
+}
+
+.whos-watching-root .eye {
+  fill: #fff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 5.5s infinite;
+  transition: transform .35s var(--ease);
+}
+
+.whos-watching-root .eye + .eye {
+  animation-delay: .04s;
+}
+
+@keyframes blink {
+  0%, 93%, 100% {
+    transform: scaleY(1);
+  }
+  96.5% {
+    transform: scaleY(.1);
+  }
+}
+
+.whos-watching-root .smile {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform .55s var(--ease);
+}
+
+.whos-watching-root .avw.shy .eye {
+  animation: none;
+  transform: scaleY(.12);
+}
+
+.whos-watching-root .avw.big .smile {
+  transform: scale(1.14, 1.35);
+}
+
+.whos-watching-root .avw.sad .smile {
+  transform: scaleY(-1) translateY(-10px);
+}
+
+.whos-watching-root .avw.cheer .avb {
+  animation: cheer .9s var(--ease);
+}
+
+@keyframes cheer {
+  30% {
+    transform: translateY(-14%) scale(1.06);
+  }
+  60% {
+    transform: translateY(0) scale(.97);
+  }
+}
+
+.whos-watching-root .pen {
+  position: absolute;
+  right: -.5rem;
+  bottom: -.5rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #1b2338;
+  border: 2px solid var(--bg);
+  opacity: 0;
+  transform: scale(.7);
+  transition: opacity .3s, transform .4s var(--ease);
+  pointer-events: none;
+}
+
+.whos-watching-root .avb:hover + .pen,
+.whos-watching-root .avb:focus-visible + .pen {
+  opacity: 1;
+  transform: none;
+}
+
+.whos-watching-root .pen .i {
+  width: 1rem;
+  height: 1rem;
+}
+
+.whos-watching-root .ok {
+  position: absolute;
+  right: -.6rem;
+  bottom: -.6rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #22c55e;
+  border: 3px solid var(--bg);
+  transform: scale(0);
+  transition: transform .6s var(--ease) .25s;
+}
+
+.whos-watching-root .avw.done .ok {
+  transform: none;
+}
+
+.whos-watching-root .ok .i {
+  stroke-width: 2.6;
+}
+
+/* panels */
+.whos-watching-root .panels {
+  display: grid !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+.whos-watching-root .panel {
+  grid-area: 1/1 !important;
+  display: grid !important;
+  justify-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  opacity: 1 !important;
+}
+
+.whos-watching-root .panel[hidden] {
+  display: none !important;
+}
+
+/* Smooth panel slide animations */
+.whos-watching-root .panel.slide-in-right {
+  animation: panelSlideInRight .64s var(--ease) both;
+}
+.whos-watching-root .panel.slide-in-left {
+  animation: panelSlideInLeft .64s var(--ease) both;
+}
+
+@keyframes panelSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes panelSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.whos-watching-root h1 {
+  font-size: clamp(1.8rem, 2.3rem, 2.6rem) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.02em !important;
+  line-height: 1.15 !important;
+  overflow-wrap: anywhere !important;
+  font-family: inherit !important;
+}
+
+.whos-watching-root .sub {
+  margin: .7rem 0 1.6rem !important;
+  font-size: .92rem !important;
+  line-height: 1.6 !important;
+  color: #9aa1b4 !important;
+}
+
+.whos-watching-root form {
+  display: grid !important;
+  gap: 1rem !important;
+  width: 100% !important;
+}
+
+.whos-watching-root .fld {
+  position: relative !important;
+  text-align: left !important;
+  width: 100% !important;
+}
+
+.whos-watching-root .in {
+  width: 100% !important;
+  height: 3.6rem !important;
+  padding: 0 1.4rem !important;
+  border-radius: 99px !important;
+  background: rgba(255, 255, 255, .06) !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+  font-size: max(16px, 1.05rem) !important;
+  font-weight: 500 !important;
+  color: #fff !important;
+  outline: 0 !important;
+  transition: border-color .3s, background .3s, box-shadow .4s !important;
+}
+
+.whos-watching-root .in::placeholder {
+  color: #7f879b !important;
+}
+
+.whos-watching-root .in:focus {
+  border-color: #8f86ff !important;
+  background: rgba(255, 255, 255, .09) !important;
+  box-shadow: 0 0 0 .3rem rgba(91, 78, 232, .25) !important;
+}
+
+.whos-watching-root .in[aria-invalid="true"] {
+  border-color: #ff6b78 !important;
+  box-shadow: 0 0 0 .3rem rgba(255, 107, 120, .15) !important;
+}
+
+.whos-watching-root .in.pw {
+  padding-right: 3.6rem !important;
+}
+
+.whos-watching-root .eyeb {
+  position: absolute !important;
+  right: .55rem !important;
+  top: .55rem !important;
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #9aa1b4 !important;
+  transition: color .3s, background .3s !important;
+}
+
+.whos-watching-root .eyeb:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, .1) !important;
+}
+
+.whos-watching-root .eyeb .off {
+  display: none !important;
+}
+.whos-watching-root .eyeb[aria-pressed="true"] .on {
+  display: none !important;
+}
+.whos-watching-root .eyeb[aria-pressed="true"] .off {
+  display: block !important;
+}
+
+.whos-watching-root .err {
+  min-height: 1.1rem;
+  margin: .4rem 1.3rem 0;
+  font-size: .78rem;
+  font-weight: 600;
+  color: #ff8a94;
+}
+
+.whos-watching-root .err:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.whos-watching-root .msg {
+  min-height: 1.1rem;
+  margin: .4rem 1.3rem 0;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #22c55e;
+}
+
+.whos-watching-root .sm {
+  display: flex !important;
+  gap: .3rem !important;
+  margin: .7rem 1.3rem 0 !important;
+}
+
+.whos-watching-root .sm i {
+  flex: 1 !important;
+  height: .26rem !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, .14) !important;
+  transition: background .4s !important;
+}
+
+.whos-watching-root .sm[data-l="1"] i:nth-child(-n+1) {
+  background: #ff6b78 !important;
+}
+.whos-watching-root .sm[data-l="2"] i:nth-child(-n+2) {
+  background: #ffb020 !important;
+}
+.whos-watching-root .sm[data-l="3"] i:nth-child(-n+3) {
+  background: #7dd87d !important;
+}
+.whos-watching-root .sm[data-l="4"] i {
+  background: #22c55e !important;
+}
+
+.whos-watching-root .hint {
+  margin: .45rem 1.3rem 0 !important;
+  font-size: .75rem !important;
+  color: #7f879b !important;
+}
+
+.whos-watching-root .btn {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: .6rem !important;
+  width: 100% !important;
+  height: 3.6rem !important;
+  margin-top: .4rem !important;
+  border-radius: 99px !important;
+  background: var(--acc) !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  box-shadow: 0 .7rem 2rem -.5rem rgba(91, 78, 232, .75) !important;
+  transition: transform .4s var(--ease), background .3s, box-shadow .4s, opacity .3s !important;
+}
+
+.whos-watching-root .btn:hover {
+  transform: translateY(-3px) !important;
+  background: #6d61f2 !important;
+  box-shadow: 0 1rem 2.4rem -.4rem rgba(91, 78, 232, .95) !important;
+}
+
+.whos-watching-root .btn:active {
+  transform: scale(.97) !important;
+}
+
+.whos-watching-root .btn[disabled] {
+  pointer-events: none !important;
+  opacity: .85 !important;
+}
+
+.whos-watching-root .btn .sp {
+  display: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, .35);
+  border-top-color: #fff;
+  animation: sp .7s linear infinite;
+}
+
+.whos-watching-root .btn.ld .sp {
+  display: block;
+}
+
+.whos-watching-root .links {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: .4rem 1.2rem !important;
+  margin-top: 1.5rem !important;
+  font-size: .85rem !important;
+  color: #9aa1b4 !important;
+}
+
+.whos-watching-root .lk {
+  font-weight: 700 !important;
+  color: #fff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, .35) !important;
+  transition: border-color .3s, color .3s !important;
+}
+
+.whos-watching-root .lk:hover {
+  border-color: #fff !important;
+}
+
+.whos-watching-root .lk.mut {
+  color: #9aa1b4 !important;
+  font-weight: 600 !important;
+  border-color: transparent !important;
+}
+
+.whos-watching-root .lk.mut:hover {
+  color: #fff !important;
+}
+
+.whos-watching-root .fgt {
+  justify-self: end !important;
+  margin: -.2rem .4rem 0 0 !important;
+  font-size: .8rem !important;
+  font-weight: 600 !important;
+  color: #9aa1b4 !important;
+  transition: color .3s !important;
+}
+
+.whos-watching-root .fgt:hover {
+  color: #fff !important;
+}
+
+.whos-watching-root .terms {
+  margin-top: 1.4rem !important;
+  font-size: .72rem !important;
+  line-height: 1.6 !important;
+  color: #6f778b !important;
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .whos-watching-root .avw {
+    margin-bottom: .8rem !important;
+  }
+  .whos-watching-root h1 {
+    font-size: 1.6rem !important;
+  }
+  .whos-watching-root .sub {
+    margin: .4rem 0 1rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whos-watching-root *,
+  .whos-watching-root ::before,
+  .whos-watching-root ::after {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+}

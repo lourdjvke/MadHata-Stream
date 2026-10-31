@@ -1,0 +1,6 @@
+{
+  "name": "slothui original",
+  "description": "Cinematic entertainment UI recreated with high fidelity, 3D perspective carousel, video previews, and fluid interactions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

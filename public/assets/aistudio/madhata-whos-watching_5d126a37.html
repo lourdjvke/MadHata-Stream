@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Who is watching? · MadHata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+@property --c1{syntax:"<color>";inherits:true;initial-value:#2f7cf6}
+@property --c2{syntax:"<color>";inherits:true;initial-value:#0d3fc4}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+:root{--bg:#0b0e16;--acc:#5b4ee8;--ease:cubic-bezier(.22,1,.36,1);--av:clamp(6rem,24svh,12rem);
+padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+font-size:clamp(14px,.4vw + 10.2px,30px);background:var(--bg)}
+html,body{min-height:100%}
+body{min-height:100svh;display:flex;flex-direction:column;background:var(--bg);color:#fff;font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input{font:inherit;color:inherit;background:none;border:0;-webkit-tap-highlight-color:transparent}
+button{cursor:pointer}
+:focus-visible{outline:2px solid #9d94ff;outline-offset:3px}
+.i{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+@keyframes up{from{opacity:0;transform:translateY(1.2rem)}}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* top bar */
+.bar{display:flex;align-items:center;justify-content:space-between;padding:1.2rem clamp(1.2rem,4vw,4.5rem);animation:up .9s var(--ease) both}
+.brand{display:flex;align-items:center;gap:.6rem;font-size:1.1rem;font-weight:300}.brand b{font-weight:800}
+.logo{width:1.8rem;height:1.8rem;border-radius:.55rem;background:linear-gradient(135deg,#7f63ff,#3b2fd0);display:grid;place-items:center;font-weight:800;font-size:1rem}
+.tb{padding:.55rem 1.25rem;border-radius:99px;border:1px solid rgba(255,255,255,.28);font-size:.85rem;font-weight:600;transition:border-color .3s,background .3s,transform .4s var(--ease)}
+.tb:hover{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.06);transform:translateY(-2px)}.tb:active{transform:scale(.96)}
+
+/* stage */
+main{flex:1;display:grid;place-items:center;padding:.5rem 1.2rem clamp(2rem,8svh,5rem)}
+.stage{width:min(100%,27rem);display:grid;justify-items:center;text-align:center}
+.avw{position:relative;width:var(--av);height:var(--av);margin-bottom:clamp(1.2rem,4svh,2.2rem);animation:up 1s var(--ease) .1s both}
+.glow{position:absolute;inset:-18%;border-radius:50%;background:var(--c1);filter:blur(3.4rem);opacity:.28;transition:--c1 .7s;pointer-events:none}
+.avb{position:relative;display:block;width:100%;height:100%;border-radius:22%;transition:transform .5s var(--ease),--c1 .7s,--c2 .7s}
+.avb:hover{transform:scale(1.05) rotate(-2deg)}.avb:active{transform:scale(.95)}
+.avb svg{width:100%;height:100%;display:block;overflow:visible;border-radius:22%;box-shadow:0 1.6rem 3.4rem -1.2rem rgba(0,0,0,.8)}
+.eyes{transition:transform .4s var(--ease);transform:translate(var(--lx,0px),var(--ly,0px))}
+.eye{fill:#fff;transform-box:fill-box;transform-origin:center;animation:blink 5.5s infinite;transition:transform .35s var(--ease)}
+.eye+.eye{animation-delay:.04s}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96.5%{transform:scaleY(.1)}}
+.smile{fill:none;stroke:#fff;stroke-width:9;stroke-linecap:round;transform-box:fill-box;transform-origin:center;transition:transform .55s var(--ease)}
+.avw.shy .eye{animation:none;transform:scaleY(.12)}
+.avw.big .smile{transform:scale(1.14,1.35)}
+.avw.sad .smile{transform:scaleY(-1) translateY(-10px)}
+.avw.cheer .avb{animation:cheer .9s var(--ease)}
+@keyframes cheer{30%{transform:translateY(-14%) scale(1.06)}60%{transform:translateY(0) scale(.97)}}
+.pen{position:absolute;right:-.5rem;bottom:-.5rem;width:2.2rem;height:2.2rem;border-radius:50%;display:grid;place-items:center;background:#1b2338;border:2px solid var(--bg);opacity:0;transform:scale(.7);transition:opacity .3s,transform .4s var(--ease);pointer-events:none}
+.avb:hover+.pen,.avb:focus-visible+.pen{opacity:1;transform:none}.pen .i{width:1rem;height:1rem}
+.ok{position:absolute;right:-.6rem;bottom:-.6rem;width:2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;background:#22c55e;border:3px solid var(--bg);transform:scale(0);transition:transform .6s var(--ease) .25s}
+.avw.done .ok{transform:none}.ok .i{stroke-width:2.6}
+
+/* panels */
+.panels{display:grid;width:100%}
+.panel{grid-area:1/1;display:grid;justify-items:center;width:100%;min-width:0}
+h1{font-size:clamp(1.8rem,2.3rem,2.6rem);font-weight:800;letter-spacing:-.02em;line-height:1.15;overflow-wrap:anywhere}
+.sub{margin:.7rem 0 1.6rem;font-size:.92rem;line-height:1.6;color:#9aa1b4}
+form{display:grid;gap:1rem;width:100%}
+.fld{position:relative;text-align:left}
+.in{width:100%;height:3.6rem;padding:0 1.4rem;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);font-size:max(16px,1.05rem);font-weight:500;outline:0;transition:border-color .3s,background .3s,box-shadow .4s}
+.in::placeholder{color:#7f879b}
+.in:focus{border-color:#8f86ff;background:rgba(255,255,255,.09);box-shadow:0 0 0 .3rem rgba(91,78,232,.25)}
+.in[aria-invalid="true"]{border-color:#ff6b78;box-shadow:0 0 0 .3rem rgba(255,107,120,.15)}
+.in.pw{padding-right:3.6rem}
+.eyeb{position:absolute;right:.55rem;top:.55rem;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;color:#9aa1b4;transition:color .3s,background .3s}
+.eyeb:hover{color:#fff;background:rgba(255,255,255,.1)}
+.eyeb .off{display:none}.eyeb[aria-pressed="true"] .on{display:none}.eyeb[aria-pressed="true"] .off{display:block}
+.err{min-height:1.1rem;margin:.4rem 1.3rem 0;font-size:.78rem;font-weight:600;color:#ff8a94}
+.err:empty{min-height:0;margin:0}
+.sm{display:flex;gap:.3rem;margin:.7rem 1.3rem 0}
+.sm i{flex:1;height:.26rem;border-radius:9px;background:rgba(255,255,255,.14);transition:background .4s}
+.sm[data-l="1"] i:nth-child(-n+1){background:#ff6b78}.sm[data-l="2"] i:nth-child(-n+2){background:#ffb020}
+.sm[data-l="3"] i:nth-child(-n+3){background:#7dd87d}.sm[data-l="4"] i{background:#22c55e}
+.hint{margin:.45rem 1.3rem 0;font-size:.75rem;color:#7f879b}
+.btn{position:relative;display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;height:3.6rem;margin-top:.4rem;border-radius:99px;background:var(--acc);font-size:1rem;font-weight:700;box-shadow:0 .7rem 2rem -.5rem rgba(91,78,232,.75);transition:transform .4s var(--ease),background .3s,box-shadow .4s,opacity .3s}
+.btn:hover{transform:translateY(-3px);background:#6d61f2;box-shadow:0 1rem 2.4rem -.4rem rgba(91,78,232,.95)}.btn:active{transform:scale(.97)}
+.btn[disabled]{pointer-events:none;opacity:.85}
+.btn .sp{display:none;width:1.2rem;height:1.2rem;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp .7s linear infinite}
+.btn.ld .sp{display:block}
+.links{display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem 1.2rem;margin-top:1.5rem;font-size:.85rem;color:#9aa1b4}
+.lk{font-weight:700;color:#fff;border-bottom:1px solid rgba(255,255,255,.35);transition:border-color .3s,color .3s}
+.lk:hover{border-color:#fff}.lk.mut{color:#9aa1b4;font-weight:600;border-color:transparent}.lk.mut:hover{color:#fff}
+.fgt{justify-self:end;margin:-.2rem .4rem 0 0;font-size:.8rem;font-weight:600;color:#9aa1b4;transition:color .3s}.fgt:hover{color:#fff}
+.terms{margin-top:1.4rem;font-size:.72rem;line-height:1.6;color:#6f778b}
+
+@media (max-height:520px) and (orientation:landscape){.avw{margin-bottom:.8rem}h1{font-size:1.6rem}.sub{margin:.4rem 0 1rem}}
+@media (prefers-reduced-motion:reduce){*,::before,::after{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A9.7 9.7 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.4 6.5A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4.2-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+</defs></svg>
+
+<header class="bar">
+  <div class="brand"><span class="logo">M</span><span><b>MadHata</b> original</span></div>
+  <button class="tb" id="tb" type="button">Login</button>
+</header>
+
+<main>
+<div class="stage">
+  <div class="avw" id="avw">
+    <div class="glow"></div>
+    <button class="avb" id="avb" type="button" aria-label="Change profile colour">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop class="s1" offset="0" style="stop-color:var(--c1)"/><stop class="s2" offset="1" style="stop-color:var(--c2)"/></linearGradient></defs>
+        <rect width="200" height="200" rx="44" fill="url(#ag)"/>
+        <g class="eyes" id="eyes"><rect class="eye" x="54" y="62" width="19" height="34" rx="9.5"/><rect class="eye" x="127" y="62" width="19" height="34" rx="9.5"/></g>
+        <path class="smile" d="M52 124Q100 168 148 124"/>
+      </svg>
+    </button>
+    <span class="pen"><svg class="i"><use href="#pen"/></svg></span>
+    <span class="ok"><svg class="i"><use href="#ck"/></svg></span>
+  </div>
+
+  <div class="panels">
+    <!-- step 1: who is watching -->
+    <section class="panel" id="p-name" aria-labelledby="h-name">
+      <h1 id="h-name">Who is watching?</h1>
+      <p class="sub">Create your profile to start watching.</p>
+      <form id="f-name" novalidate>
+        <div class="fld"><input class="in" id="name" aria-label="Name" name="name" placeholder="Name" maxlength="24" autocomplete="nickname" enterkeyhint="next"><div class="err" id="e-name" aria-live="polite"></div></div>
+        <button class="btn" type="submit"><span class="sp"></span><span class="t">Continue</span></button>
+      </form>
+      <div class="links"><span>Already have an account?</span><button class="lk" type="button" data-go="login">Login</button></div>
+    </section>
+
+    <!-- step 2: email + password -->
+    <section class="panel" id="p-acct" aria-labelledby="h-acct" hidden>
+      <h1 id="h-acct">Hi</h1>
+      <p class="sub">Add your email and a password to save your profile.</p>
+      <form id="f-acct" novalidate>
+        <div class="fld"><input class="in" id="a-mail" type="email" placeholder="Email" autocomplete="email" inputmode="email" aria-label="Email"><div class="err" aria-live="polite"></div></div>
+        <div class="fld"><input class="in pw" id="a-pass" type="password" placeholder="Password" autocomplete="new-password" aria-label="Password"><button class="eyeb" type="button" aria-label="Show password" aria-pressed="false"><svg class="i on"><use href="#eye"/></svg><svg class="i off"><use href="#eyeoff"/></svg></button>
+          <div class="sm" id="sm" data-l="0"><i></i><i></i><i></i><i></i></div><div class="hint">Use 8 or more characters with a mix of letters and numbers.</div><div class="err" aria-live="polite"></div></div>
+        <button class="btn" type="submit"><span class="sp"></span><span class="t">Create account</span></button>
+      </form>
+      <div class="links"><button class="lk mut" type="button" data-go="name" data-back>← Change name</button><span>·</span><button class="lk mut" type="button" data-go="login">I have an account</button></div>
+      <p class="terms">By continuing you agree to the Terms of Use and Privacy Policy.</p>
+    </section>
+
+    <!-- login -->
+    <section class="panel" id="p-login" aria-labelledby="h-login" hidden>
+      <h1 id="h-login">Welcome back</h1>
+      <p class="sub">Log in to pick up where you left off.</p>
+      <form id="f-login" novalidate>
+        <div class="fld"><input class="in" id="l-mail" type="email" placeholder="Email" autocomplete="email" inputmode="email" aria-label="Email"><div class="err" aria-live="polite"></div></div>
+        <div class="fld"><input class="in pw" id="l-pass" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><button class="eyeb" type="button" aria-label="Show password" aria-pressed="false"><svg class="i on"><use href="#eye"/></svg><svg class="i off"><use href="#eyeoff"/></svg></button><div class="err" aria-live="polite"></div></div>
+        <button class="fgt lk mut" type="button">Forgot password?</button>
+        <button class="btn" type="submit"><span class="sp"></span><span class="t">Log in</span></button>
+      </form>
+      <div class="links"><span>New here?</span><button class="lk" type="button" data-go="name" data-back>Create a profile</button></div>
+    </section>
+
+    <!-- success -->
+    <section class="panel" id="p-done" aria-labelledby="h-done" hidden>
+      <h1 id="h-done">Welcome</h1>
+      <p class="sub" id="s-done">Your profile is ready.</p>
+      <button class="btn" type="button" id="start"><span class="t">Start watching</span></button>
+    </section>
+  </div>
+</div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const AV=[['#2f7cf6','#0d3fc4'],['#ff6a6f','#c1182c'],['#ffc533','#e0850a'],['#2fd08a','#0b8352'],['#8a6bff','#3b2fd0']];
+const root=document.documentElement,avw=$('#avw'),eyes=$('#eyes'),calm=matchMedia('(prefers-reduced-motion:reduce)');
+let cur='name',av=0,busy=0,user='';
+
+/* avatar: tap to change colour, eyes follow typing / pointer, shy on password, sad on error */
+function paint(){root.style.setProperty('--c1',AV[av][0]);root.style.setProperty('--c2',AV[av][1])}
+$('#avb').addEventListener('click',()=>{av=(av+1)%AV.length;paint();if(!calm.matches)$('#avb').animate([{transform:'scale(1)'},{transform:'scale(1.12) rotate(-4deg)'},{transform:'scale(1)'}],{duration:450,easing:'cubic-bezier(.22,1,.36,1)'})});
+const look=(x,y)=>{eyes.style.setProperty('--lx',x+'px');eyes.style.setProperty('--ly',y+'px')};
+addEventListener('pointermove',e=>{
+  if(document.activeElement&&document.activeElement.matches('input'))return;
+  const r=avw.getBoundingClientRect(),dx=(e.clientX-(r.left+r.width/2))/innerWidth,dy=(e.clientY-(r.top+r.height/2))/innerHeight;
+  look(Math.max(-8,Math.min(8,dx*30)).toFixed(1),Math.max(-5,Math.min(7,dy*20)).toFixed(1));
+});
+$('#name').addEventListener('input',e=>{
+  const n=e.target.value.length;avw.classList.toggle('big',n>0);
+  look(((Math.min(n,14)/14-.5)*14).toFixed(1),4);
+  if(n)err(e.target,'');
+});
+document.addEventListener('focusin',e=>{if(e.target.matches('input'))look(0,4);if(e.target.matches('.pw'))avw.classList.toggle('shy',e.target.type==='password')});
+document.addEventListener('focusout',e=>{if(e.target.matches('.pw'))avw.classList.remove('shy')});
+function sad(){avw.classList.add('sad');setTimeout(()=>avw.classList.remove('sad'),1400)}
+
+/* navigation between steps */
+const P={name:$('#p-name'),acct:$('#p-acct'),login:$('#p-login'),done:$('#p-done')};
+function go(to,dir=1){
+  if(to===cur||busy)return;busy=1;setTimeout(()=>busy=0,450);
+  const a=P[cur],b=P[to];cur=to;
+  if(calm.matches){a.hidden=true;b.hidden=false}
+  else{
+    a.animate([{opacity:1,transform:'none'},{opacity:0,transform:`translateX(${-dir*2}rem)`}],{duration:300,easing:'ease-in',fill:'forwards'}).onfinish=()=>{a.hidden=true;a.getAnimations().forEach(x=>x.cancel())};
+    b.hidden=false;
+    b.animate([{opacity:0,transform:`translateX(${dir*2}rem)`},{opacity:1,transform:'none'}],{duration:640,delay:140,easing:'cubic-bezier(.22,1,.36,1)',fill:'backwards'});
+  }
+  const tb=$('#tb');tb.hidden=to==='acct'||to==='done';tb.textContent=to==='login'?'Sign up':'Login';
+  avw.classList.toggle('done',to==='done');
+  setTimeout(()=>{const f=b.querySelector('input');if(f)f.focus({preventScroll:true})},380);
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go,b.hasAttribute('data-back')?-1:1)});
+$('#tb').addEventListener('click',()=>go(cur==='login'?'name':'login',cur==='login'?-1:1));
+
+/* validation helpers */
+const emailOk=v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+function err(inp,msg){
+  const e=inp.closest('.fld').querySelector('.err');e.textContent=msg||'';inp.setAttribute('aria-invalid',!!msg);
+  if(msg){if(!calm.matches)inp.animate([{transform:'none'},{transform:'translateX(-7px)'},{transform:'translateX(7px)'},{transform:'translateX(-4px)'},{transform:'none'}],{duration:380});sad()}
+}
+['#a-mail','#l-mail','#a-pass','#l-pass'].forEach(s=>$(s).addEventListener('input',e=>err(e.target,'')));
+const busyBtn=(f,on)=>{const b=f.querySelector('.btn');b.classList.toggle('ld',on);b.disabled=on};
+const fakeAuth=()=>new Promise(r=>setTimeout(r,1100)); /* replace with your real sign-up / login request */
+function finish(title,sub){
+  $('#h-done').textContent=title;$('#s-done').textContent=sub;go('done',1);
+  setTimeout(()=>{avw.classList.add('big');avw.classList.remove('cheer');void avw.offsetWidth;avw.classList.add('cheer')},500);
+}
+
+/* password reveal */
+document.querySelectorAll('.eyeb').forEach(b=>b.addEventListener('click',()=>{
+  const inp=b.parentNode.querySelector('.in'),show=inp.type==='password';
+  inp.type=show?'text':'password';b.setAttribute('aria-pressed',show);b.setAttribute('aria-label',show?'Hide password':'Show password');
+  avw.classList.toggle('shy',!show&&document.activeElement===inp);inp.focus({preventScroll:true});
+}));
+
+/* step 1: name */
+$('#f-name').addEventListener('submit',e=>{
+  e.preventDefault();const inp=$('#name'),n=inp.value.trim();
+  if(!n){err(inp,'Enter a name to continue.');return}
+  user=n;$('#h-acct').textContent=`Hi, ${n}`;go('acct',1);
+});
+
+/* step 2: create account */
+$('#a-pass').addEventListener('input',e=>{
+  const v=e.target.value;let l=0;
+  if(v.length>=8)l++;if(/[a-z]/.test(v)&&/[A-Z]/.test(v))l++;if(/\d/.test(v))l++;if(/[^A-Za-z0-9]/.test(v))l++;
+  $('#sm').dataset.l=v?Math.max(1,l):0;
+});
+$('#f-acct').addEventListener('submit',async e=>{
+  e.preventDefault();const m=$('#a-mail'),p=$('#a-pass');let ok=true;
+  if(!emailOk(m.value.trim())){err(m,'Enter a valid email address.');ok=false}
+  if(p.value.length<8){err(p,'Use at least 8 characters.');ok=false}
+  if(!ok)return;
+  busyBtn(e.target,true);await fakeAuth();busyBtn(e.target,false);
+  finish(`Welcome, ${user}!`,'Your profile is ready. Enjoy the show.');
+});
+
+/* login */
+$('#f-login').addEventListener('submit',async e=>{
+  e.preventDefault();const m=$('#l-mail'),p=$('#l-pass');let ok=true;
+  if(!emailOk(m.value.trim())){err(m,'Enter a valid email address.');ok=false}
+  if(!p.value){err(p,'Enter your password.');ok=false}
+  if(!ok)return;
+  busyBtn(e.target,true);await fakeAuth();busyBtn(e.target,false);
+  finish('Welcome back!','You are logged in. Pick up where you left off.');
+});
+
+paint();
+setTimeout(()=>$('#name').focus({preventScroll:true}),700);
+</script>
+</body>
+</html>
