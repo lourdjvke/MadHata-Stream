@@ -13,11 +13,17 @@ import { ProfilePage } from './pages/ProfilePage.tsx';
 import { MovieDetailsPage } from './pages/MovieDetailsPage.tsx';
 import { PlayerPage } from './pages/PlayerPage.tsx';
 import { ScrollManager } from './components/ScrollManager.tsx';
+import { GlobalSvgSymbols } from './components/GlobalSvgSymbols.tsx';
+import { GlobalDownloadToast } from './components/GlobalDownloadToast.tsx';
+
+import { DownloadsPage } from './pages/DownloadsPage.tsx';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <GlobalSvgSymbols />
+        <GlobalDownloadToast />
         <ScrollManager />
         <Routes>
           {/* Public Auth / Profile Selection Page */}
@@ -39,6 +45,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/downloads"
+            element={
+              <ProtectedRoute>
+                <DownloadsPage />
               </ProtectedRoute>
             }
           />

@@ -5,6 +5,7 @@ import { getStoredActiveMedia, MediaItem } from '../utils/mediaWorkerApi.ts';
 import { getWatchedEp, extractSeasonInfo, cleanSynopsis } from '../utils/textUtils.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { addToWatchlist, removeFromWatchlist, listenToWatchlist, recordDownload } from '../utils/userDataService.ts';
+import { opfsService } from '../utils/opfsService.ts';
 
 interface MovieDetailsHeroProps {
   currentEpisode: [number, number]; // [seasonIndex, episodeIndex]
@@ -97,33 +98,52 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
     }
   };
 
-  const handleDownloadMovie = () => {
-    const downloads = activeMedia?.downloads;
-    const currentEpIndex = currentEpisode[1];
-    const downloadItem = (downloads && downloads.length > currentEpIndex) ? downloads[currentEpIndex] : downloads?.[0];
-    const downloadUrl = downloadItem?.url || activeMedia?.url || activeMedia?.original_url;
-    if (downloadUrl) {
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.download = `${heroTitle}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-    // Increment total downloads in RTDB
-    if (user?.uid) {
-      recordDownload(user.uid, {
+  const [activeDownloads, setActiveDownloads] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const unsub = opfsService.subscribe((active) => {
+      setActiveDownloads(active);
+    });
+    return unsub;
+  }, []);
+
+  const handleDownloadMovie = async () => {
+    const currentId = activeMedia?.id || activeMedia?.slug || heroTitle;
+    if (opfsService.isDownloading(currentId)) return;
+
+    try {
+      await opfsService.startDownload({
         id: currentId,
         title: heroTitle,
-        url: downloadUrl || '',
+        type: activeMedia?.downloads?.length ? 'series' : 'movie',
+        posterUrl: activeMedia?.poster,
+        quality: 'HD',
+        sub: activeMedia?.downloads?.length ? `S${displaySeason}:E${i + 1}` : 'Movie',
+        label: activeMedia?.downloads?.length ? `S${displaySeason}:E${i + 1}` : '',
+        sizeMb: activeMedia?.downloads?.length ? 550 : 1600,
       });
+
+      if (user?.uid) {
+        recordDownload(user.uid, {
+          id: currentId,
+          title: heroTitle,
+          url: activeMedia?.url || '',
+        });
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Storage limit exceeded! Unable to start download.');
     }
   };
 
+  const isDownloading = activeMedia && activeDownloads.some(d => d.mediaId === (activeMedia.id || activeMedia.slug || activeMedia.title));
+  const dlProgress = activeMedia ? activeDownloads.find(d => d.mediaId === (activeMedia.id || activeMedia.slug || activeMedia.title))?.p || 0 : 0;
+
   return (
     <section className="hero" style={{ minHeight: 'clamp(34rem, 84svh, 62rem)' }}>
+      <style>{`
+        @keyframes dl-spin { to { transform: rotate(360deg); } }
+        .dl-spinner { animation: dl-spin 1s linear infinite; }
+      `}</style>
       <div className="bd" aria-hidden="true">
         {activeMedia?.poster ? (
           <img
@@ -228,9 +248,23 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
               <use href={isInWatchlist ? "#ck" : "#plus"} />
             </svg>
           </button>
-          <button className="b" aria-label="Download" onClick={handleDownloadMovie} title="Download Video">
-            <svg className="i">
-              <use href="#dl" />
+          <button 
+            className="b" 
+            aria-label="Download" 
+            onClick={handleDownloadMovie} 
+            title={isDownloading ? `Downloading: ${Math.round(dlProgress * 100)}%` : "Download Video"}
+            style={{
+              background: isDownloading ? 'rgba(91, 78, 232, 0.2)' : undefined,
+              border: isDownloading ? '1px solid var(--acc)' : 'none',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            {isDownloading && (
+              <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
+            )}
+            <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ color: isDownloading ? 'var(--acc)' : 'inherit' }}>
+              <use href={isDownloading ? "#gear" : "#dl"} />
             </svg>
           </button>
         </div>
@@ -244,3 +278,4 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
     </section>
   );
 };
+

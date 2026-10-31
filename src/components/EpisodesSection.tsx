@@ -6,6 +6,7 @@ import { subscribeThumbnails } from '../utils/thumbnailGenerator.ts';
 import { decodeHtmlEntities, extractSeasonInfo, getWatchedEp } from '../utils/textUtils.ts';
 import { auth } from '../firebase.ts';
 import { recordDownload } from '../utils/userDataService.ts';
+import { opfsService } from '../utils/opfsService.ts';
 
 interface EpisodesSectionProps {
   currentEpisode: [number, number];
@@ -113,29 +114,52 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
     ? `${Math.floor(minutesWatched / 60)}h ${minutesWatched % 60}m watched`
     : `${activeSeasonName} (${episodeList.length} episodes)`;
 
-  const handleDownloadEpisode = (e: React.MouseEvent, url: string, title: string) => {
+  const [activeDownloads, setActiveDownloads] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsub = opfsService.subscribe((active) => {
+      setActiveDownloads(active);
+    });
+    return unsub;
+  }, []);
+
+  const handleDownloadEpisode = async (e: React.MouseEvent, url: string, title: string) => {
     e.stopPropagation();
-    if (url) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.download = `${title}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-    if (auth.currentUser?.uid) {
-      recordDownload(auth.currentUser.uid, {
-        id: `${activeMedia?.id || activeMedia?.cleanTitle || 'ep'}_${title}`,
-        title,
-        url,
+    const mediaTitle = activeMedia?.cleanTitle || activeMedia?.title || 'Series';
+    const mediaId = activeMedia?.id || activeMedia?.slug || mediaTitle;
+
+    if (opfsService.isDownloading(mediaId)) return;
+
+    try {
+      await opfsService.startDownload({
+        id: mediaId,
+        title: mediaTitle,
+        type: 'series',
+        posterUrl: activeMedia?.poster,
+        quality: 'HD',
+        sub: title,
+        label: `S${selectedSeason + 1}`,
+        sizeMb: 520,
       });
+
+      if (auth.currentUser?.uid) {
+        recordDownload(auth.currentUser.uid, {
+          id: `${activeMedia?.id || activeMedia?.cleanTitle || 'ep'}_${title}`,
+          title: `${mediaTitle} - ${title}`,
+          url,
+        });
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Storage limit exceeded! Unable to start download.');
     }
   };
 
   return (
     <section className="sec" id="episodes" ref={sectionRef}>
+      <style>{`
+        @keyframes dl-spin { to { transform: rotate(360deg); } }
+        .dl-spinner { animation: dl-spin 1s linear infinite; }
+      `}</style>
       <div className="eh">
         <div>
           <h2>Episodes ({episodeList.length})</h2>
@@ -182,6 +206,10 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
           const thumbKey = (i + selectedSeason * 2) % 6;
           // Prefer active posterartwork or thumbnail generator frame
           const thumbUrl = activeMedia?.poster || thumbnails[thumbKey];
+
+          const isDownloading = activeDownloads.some(d => d.mediaId === (activeMedia?.id || activeMedia?.slug || activeMedia?.title) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
+          const dlItem = activeDownloads.find(d => d.mediaId === (activeMedia?.id || activeMedia?.slug || activeMedia?.title) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
+          const dlProgress = dlItem ? dlItem.p : 0;
 
           return (
             <button
@@ -247,22 +275,28 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
               {ep.downloadUrl && (
                 <span
                   className="b"
-                  title={`Download ${ep.title}`}
+                  title={isDownloading ? `Downloading: ${Math.round(dlProgress * 100)}%` : `Download ${ep.title}`}
                   onClick={(e) => handleDownloadEpisode(e, ep.downloadUrl, ep.title)}
                   style={{
                     width: '2.4rem',
                     height: '2.4rem',
                     borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.08)',
+                    background: isDownloading ? 'rgba(91, 78, 232, 0.2)' : 'rgba(255, 255, 255, 0.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginLeft: '.4rem',
                     flexShrink: 0,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: isDownloading ? '1px solid var(--acc)' : 'none'
                   }}
                 >
-                  <svg className="i" style={{ width: '1.1rem', height: '1.1rem' }}>
-                    <use href="#dl" />
+                  {isDownloading && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
+                  )}
+                  <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ width: '1.1rem', height: '1.1rem', color: isDownloading ? 'var(--acc)' : 'inherit' }}>
+                    <use href={isDownloading ? "#gear" : "#dl"} />
                   </svg>
                 </span>
               )}
@@ -273,3 +307,4 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
     </section>
   );
 };
+

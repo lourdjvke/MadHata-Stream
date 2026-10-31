@@ -10,6 +10,7 @@ import { setWatchedEp, decodeHtmlEntities, extractSeasonInfo } from '../utils/te
 import { dbService } from '../utils/db.ts';
 import { auth } from '../firebase.ts';
 import { saveWatchProgress } from '../utils/userDataService.ts';
+import { opfsService } from '../utils/opfsService.ts';
 
 export const PlayerPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export const PlayerPage: React.FC = () => {
     let DOWNLOAD_URLS: string[] = [];
     let mediaTitle = 'HOUSES & DRAGONS';
     let seasonLabel = 'Season 1';
+    let blobUrls: string[] = [];
 
     const prog = [1, 1, 1, 0.62, 0, 0, 0, 0];
     const THUMB_AT = [4, 12, 19, 26, 33, 40, 47, 54];
@@ -459,7 +461,23 @@ export const PlayerPage: React.FC = () => {
       saveToRecent();
     }
 
-    function go(i: number) {
+    async function resolveSource(i: number) {
+      const activeMedia = getStoredActiveMedia();
+      const type = activeMedia?.downloads?.length ? 'series' : 'movie';
+      const mediaId = activeMedia?.id || activeMedia?.slug || mediaTitle;
+
+      // Try OPFS first for offline playback
+      const opfsUrl = await opfsService.getPlaybackUrl(mediaId, type, i);
+      if (opfsUrl) {
+        console.log('Playing from OPFS:', opfsUrl);
+        blobUrls.push(opfsUrl);
+        return opfsUrl;
+      }
+
+      return VIDEO_URLS[i] || VIDEO_URLS[0] || DEFAULT_SRC;
+    }
+
+    async function go(i: number) {
       if (i < 0 || i >= EPS.length) return;
       cdStop();
       ei = i;
@@ -467,7 +485,7 @@ export const PlayerPage: React.FC = () => {
       mark();
 
       // Change video source if dynamic video stream is available
-      const nextSrc = VIDEO_URLS[i] || VIDEO_URLS[0] || DEFAULT_SRC;
+      const nextSrc = await resolveSource(i);
       if (v.src !== nextSrc) {
         v.src = nextSrc;
       }
@@ -873,7 +891,7 @@ export const PlayerPage: React.FC = () => {
         mediaTitle = storedMedia.cleanTitle;
       }
       fetchMediaDetails({ url: activeTargetUrl, source: targetSource })
-        .then((details) => {
+        .then(async (details) => {
           if (isCancelled || !details) return;
           mediaTitle = decodeHtmlEntities(details.cleanTitle || details.title || mediaTitle);
           const sInfo = extractSeasonInfo(details.title || '', details.url);
@@ -891,7 +909,7 @@ export const PlayerPage: React.FC = () => {
           renderEpisodesDrawer();
           mark();
 
-          const activeVideoUrl = VIDEO_URLS[ei] || VIDEO_URLS[0] || DEFAULT_SRC;
+          const activeVideoUrl = await resolveSource(ei);
           if (v.src !== activeVideoUrl) {
             v.src = activeVideoUrl;
           }
@@ -923,6 +941,9 @@ export const PlayerPage: React.FC = () => {
 
       v.pause();
       v.src = '';
+      
+      // Revoke any blob URLs to free memory
+      blobUrls.forEach(url => URL.revokeObjectURL(url));
 
       v.removeEventListener('play', onPlay);
       v.removeEventListener('pause', onPause);
@@ -958,6 +979,7 @@ export const PlayerPage: React.FC = () => {
       clearInterval(periodicSync);
     };
   }, [navigate, searchParams]);
+
 
   return (
     <>

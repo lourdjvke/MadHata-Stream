@@ -13,11 +13,12 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
 
   const isHome = location.pathname === '/';
   const isSearch = location.pathname === '/search';
+  const isDownloads = location.pathname === '/downloads';
   const isProfile = location.pathname === '/profile';
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
-  const handleNavClick = (tab: 'home' | 'search' | 'profile') => {
+  const handleNavClick = (tab: 'home' | 'search' | 'downloads' | 'profile') => {
     setShowProfileMenu(false);
     if (tab === 'home') {
       if (isHome) {
@@ -32,6 +33,12 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
     } else if (tab === 'search') {
       if (!isSearch) {
         navigate('/search');
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else if (tab === 'downloads') {
+      if (!isDownloads) {
+        navigate('/downloads');
       } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -93,6 +100,19 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
         >
           <svg className="i">
             <use href="#search" />
+          </svg>
+        </button>
+
+        {/* Downloads (added right before profile) */}
+        <button
+          className={`nb ${isDownloads ? 'on' : ''}`}
+          aria-label="Downloads"
+          aria-current={isDownloads ? 'page' : undefined}
+          onClick={() => handleNavClick('downloads')}
+          title="Downloads"
+        >
+          <svg className="i">
+            <use href="#dl" />
           </svg>
         </button>
 
