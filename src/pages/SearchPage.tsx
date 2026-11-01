@@ -13,6 +13,8 @@ import {
 } from '../utils/mediaWorkerApi.ts';
 import { useDraggableRow } from '../hooks/useDraggableRow.ts';
 import { decodeHtmlEntities } from '../utils/textUtils.ts';
+import { auth } from '../firebase.ts';
+import { trackSearchQuery } from '../utils/analyticsTracker.ts';
 
 const DEFAULT_RECENT: string[] = [];
 
@@ -116,6 +118,9 @@ export const SearchPage: React.FC = () => {
   const executeSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
     if (!trimmed) return;
+
+    // Track search query in RTDB
+    trackSearchQuery(trimmed, auth.currentUser?.uid || undefined);
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();

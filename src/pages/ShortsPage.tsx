@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
+import { auth } from '../firebase.ts';
+import { trackSearchQuery, trackShortsView } from '../utils/analyticsTracker.ts';
 import '../styles/shorts.css';
 
 interface DramaItem {
@@ -156,6 +158,9 @@ export const ShortsPage: React.FC = () => {
         const ep = details.downloads[epIdx] || details.downloads[0];
         playEpisodeStream(video, ep.stream_url, ep.format, muted);
       }
+
+      // Track short view in RTDB
+      trackShortsView(item.slug, 15, false, false, item.title, auth.currentUser?.uid || undefined);
     },
     [activeEpIndex, detailsCache, muted, playEpisodeStream]
   );
@@ -183,6 +188,7 @@ export const ShortsPage: React.FC = () => {
   // Search handler
   const handleSearch = async (query: string) => {
     if (!query.trim()) return;
+    trackSearchQuery(query.trim(), auth.currentUser?.uid || undefined);
     setLoading(true);
     setLoadingMsg(`Searching for "${query}"...`);
     try {
