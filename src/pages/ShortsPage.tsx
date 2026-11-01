@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Hls from 'hls.js';
 import { auth } from '../firebase.ts';
 import { trackSearchQuery, trackShortsView } from '../utils/analyticsTracker.ts';
@@ -165,14 +165,40 @@ export const ShortsPage: React.FC = () => {
     [activeEpIndex, detailsCache, muted, playEpisodeStream]
   );
 
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
   // Fetch Trending feed
   const fetchTrending = useCallback(async () => {
     setLoading(true);
     setLoadingMsg('Loading trending dramas...');
+    const targetSlug = (location.state as any)?.slug || searchParams.get('slug');
+
     try {
       const data = await getJson('/trending');
-      if (data.results && data.results.length) {
-        setFeedItems(data.results);
+      let itemsList: DramaItem[] = data.results || [];
+
+      if (targetSlug && itemsList.length > 0) {
+        const existingIdx = itemsList.findIndex((it) => it.slug === targetSlug);
+        if (existingIdx > 0) {
+          const [found] = itemsList.splice(existingIdx, 1);
+          itemsList.unshift(found);
+        } else if (existingIdx === -1) {
+          try {
+            const detailData = await getJson('/details?slug=' + encodeURIComponent(targetSlug));
+            if (detailData) {
+              itemsList.unshift({
+                slug: targetSlug,
+                title: detailData.title || targetSlug,
+                poster: detailData.poster || '',
+              });
+            }
+          } catch {}
+        }
+      }
+
+      if (itemsList.length > 0) {
+        setFeedItems(itemsList);
         setCurrentIdx(0);
       } else {
         setFeedItems([]);
@@ -183,7 +209,7 @@ export const ShortsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [location.state, searchParams]);
 
   // Search handler
   const handleSearch = async (query: string) => {

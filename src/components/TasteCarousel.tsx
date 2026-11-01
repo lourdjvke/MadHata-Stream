@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 
 interface TasteCarouselProps {
@@ -11,12 +12,13 @@ interface TasteItem {
   poster: string;
   streamUrl: string;
   format?: string;
-  rating: string;
+  episodesCount: number;
 }
 
 const API_BASE = 'https://chartdrama-api.levity-build.workers.dev';
 
 export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChange }) => {
+  const navigate = useNavigate();
   const tasteRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
@@ -48,7 +50,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
   const startedRef = useRef(false);
   const curRef = useRef(-1);
 
-  // Fetch trending short-form dramas & their first episodes
+  // Fetch trending short-form dramas & their episode counts
   useEffect(() => {
     let isMounted = true;
 
@@ -66,9 +68,9 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         const topShorts = data.results.slice(0, 7);
         const detailedItems: TasteItem[] = [];
 
-        // Fetch details for each short-form series to get episode 1 stream
+        // Fetch details for each short-form series to get episode count & ep 1 stream
         await Promise.all(
-          topShorts.map(async (short: any, index: number) => {
+          topShorts.map(async (short: any) => {
             try {
               const dRes = await fetch(`${API_BASE}/details?slug=${encodeURIComponent(short.slug)}`);
               const dData = await dRes.json();
@@ -80,7 +82,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
                   poster: short.poster || '',
                   streamUrl: ep1.stream_url,
                   format: ep1.format || 'm3u8',
-                  rating: (4.5 + (index % 5) * 0.1).toFixed(1),
+                  episodesCount: dData.downloads.length,
                 });
               }
             } catch {
@@ -92,6 +94,9 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         if (isMounted) {
           if (detailedItems.length > 0) {
             setItems(detailedItems);
+            // Reset refs
+            cardRefs.current = [];
+            videoRefs.current = [];
           } else {
             setItems([]);
           }
@@ -277,7 +282,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
           pauseAll(-1);
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.3 }
     );
     tasteObserver.observe(taste);
 
@@ -307,7 +312,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
       // Cleanup HLS instances
       Object.values(hlsInstancesRef.current).forEach((hls) => hls?.destroy());
     };
-  }, [renderCards, onTasteInViewChange, playVideo, pauseAll, step]);
+  }, [items, renderCards, onTasteInViewChange, playVideo, pauseAll, step]);
 
   // Pointer drag events on stage
   useEffect(() => {
@@ -329,7 +334,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
       const drag = dragRef.current;
       if (!drag) return;
       const dx = e.clientX - drag.x;
-      if (!drag.m && Math.abs(dx) > 6) {
+      if (!drag.m && Math.abs(dx) > 4) {
         drag.m = 1;
         startedRef.current = true;
         stage.classList.add('drag');
@@ -358,11 +363,11 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         movedRef.current = 1;
         setTimeout(() => {
           movedRef.current = 0;
-        }, 60);
+        }, 80);
         const base = Math.round(drag.p);
         const W = widthRef.current || 1;
         const target = Math.round(posRef.current - (drag.v * 200) / (W * STEP));
-        goTo(Math.max(base - 2, Math.min(base + 2, target)));
+        goTo(Math.max(base - 1, Math.min(base + 1, target)));
       }
     };
 
@@ -402,11 +407,15 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
     const cards = cardRefs.current.filter(Boolean) as HTMLElement[];
     const idx = cards.indexOf(card);
     if (idx === -1) return;
+    const item = items[idx];
+    if (!item) return;
+
     const d = wrap(idx - Math.round(posRef.current));
     if (d !== 0) {
       goTo(Math.round(posRef.current) + d);
     } else {
-      toggleVideo();
+      // Open that drama series in our Shorts page!
+      navigate(`/shorts?slug=${encodeURIComponent(item.slug)}`, { state: { slug: item.slug } });
     }
   };
 
@@ -425,6 +434,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         aria-roledescription="carousel"
         aria-label="Short Dramas"
         onClick={handleStageClick}
+        style={{ touchAction: 'pan-y' }}
       >
         {loading
           ? Array.from({ length: 5 }).map((_, i) => (
@@ -475,7 +485,7 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
                       <svg className="i s">
                         <use href="#star" />
                       </svg>
-                      {item.rating}
+                      E1-{item.episodesCount}
                     </em>
                   </div>
                 </div>
