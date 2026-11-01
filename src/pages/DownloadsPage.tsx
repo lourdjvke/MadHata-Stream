@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NavigationRail } from '../components/NavigationRail.tsx';
-import { PWAInstallStrip } from '../components/PWAInstallStrip.tsx';
 import {
   opfsService,
   ActiveDownload,
@@ -17,9 +16,9 @@ export const DownloadsPage: React.FC = () => {
   const [doneList, setDoneList] = useState<DoneDownload[]>([]);
   const [stats, setStats] = useState<StorageStats>({
     downloadsMb: 0,
-    otherMb: 38400,
-    freeMb: 25600,
-    totalMb: 65536,
+    otherMb: 0,
+    freeMb: 0,
+    totalMb: 0,
   });
   const [openSeries, setOpenSeries] = useState<Set<string | number>>(new Set());
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -38,15 +37,19 @@ export const DownloadsPage: React.FC = () => {
   }, []);
 
   const formatSize = (mb: number) => {
-    return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB';
+    if (!mb || mb <= 0) return '0 MB';
+    if (mb >= 1024) {
+      return (mb / 1024).toFixed(1) + ' GB';
+    }
+    return (Math.round(mb * 10) / 10) + ' MB';
   };
 
   const getSeriesTotalSize = (d: DoneSeriesDownload) => {
-    return d.eps.reduce((acc, ep) => acc + ep.mb, 0);
+    return d.eps.reduce((acc, ep) => acc + (ep.mb || 0), 0);
   };
 
   const calculateEta = (a: ActiveDownload) => {
-    const remMb = (1 - a.p) * a.mb;
+    const remMb = Math.max(0, (1 - a.p) * a.mb);
     const sec = Math.max(1, Math.round(remMb / (a.spd || 1)));
     return sec >= 60 ? `${Math.floor(sec / 60)}m ${sec % 60}s left` : `${sec}s left`;
   };
@@ -86,7 +89,7 @@ export const DownloadsPage: React.FC = () => {
   const handleDeleteDone = (id: string | number, epIndex?: number) => {
     const snapActive = [...activeList];
     const snapDone = [...doneList];
-    const target = doneList.find((x) => x.id === id);
+    const target = doneList.find((x) => String(x.id) === String(id));
 
     if (target && target.type === 'series' && epIndex !== undefined && target.eps.length > 1) {
       const epName = target.eps[epIndex]?.sub || 'Episode';
@@ -125,38 +128,43 @@ export const DownloadsPage: React.FC = () => {
   };
 
   const handlePlayMedia = (mediaId: string | number, item: any, epIndex?: number) => {
-    // Store as active media so PlayerPage knows what we are playing
     const mediaItem = {
-      id: mediaId,
+      id: String(mediaId),
       title: item.t,
       cleanTitle: item.t,
       poster: item.posterUrl,
       type: item.type,
       year: item.year,
-      synopsis: item.synopsis
+      synopsis: item.synopsis,
     };
-    
+
     try {
       sessionStorage.setItem('slothui_active_media', JSON.stringify(mediaItem));
     } catch {}
 
-    const search = epIndex !== undefined ? `?ep=${epIndex}` : '';
-    navigate(`/watch${search}`, { state: { isOffline: true } });
+    const searchParams = new URLSearchParams();
+    searchParams.set('id', String(mediaId));
+    if (epIndex !== undefined) {
+      searchParams.set('ep', String(epIndex));
+    }
+    searchParams.set('offline', '1');
+
+    navigate(`/watch?${searchParams.toString()}`);
   };
 
-  const otherPercent = Math.min(100, (stats.otherMb / (stats.totalMb || 1)) * 100);
-  const dlPercent = Math.min(100, (stats.downloadsMb / (stats.totalMb || 1)) * 100);
+  const total = Math.max(1, stats.totalMb);
+  const dlPercent = Math.min(100, Math.max(stats.downloadsMb > 0 ? 0.8 : 0, (stats.downloadsMb / total) * 100));
+  const otherPercent = Math.min(100 - dlPercent, Math.max(0, (stats.otherMb / total) * 100));
 
   return (
     <div className="min-h-screen bg-[#0b0e16] text-white font-['Plus_Jakarta_Sans',sans-serif] pb-24">
-      <PWAInstallStrip />
       <NavigationRail />
 
       {/* Top Header */}
       <header className="top rv" style={{ '--n': 0 } as React.CSSProperties}>
-        <button 
-          className="ic bk" 
-          aria-label="Back" 
+        <button
+          className="ic bk"
+          aria-label="Back"
           onClick={() => navigate(-1)}
           style={{ position: 'absolute', left: 'calc(var(--rail) + 1.25rem)', zIndex: 10 }}
         >
@@ -171,14 +179,16 @@ export const DownloadsPage: React.FC = () => {
       </header>
 
       <main style={{ maxWidth: '82rem', margin: '0 auto' }}>
-        {/* Storage Bar Section */}
+        {/* Factual Storage Bar Section */}
         <section className="stg rv" style={{ '--n': 1 } as React.CSSProperties} id="stg" aria-label="Storage">
           <div className="l">
             <span>
               <b id="su">{formatSize(stats.downloadsMb)}</b> used by downloads
             </span>
             <span id="sf">
-              {formatSize(stats.freeMb)} free of {formatSize(stats.totalMb)}
+              {stats.totalMb > 0
+                ? `${formatSize(stats.freeMb)} free of ${formatSize(stats.totalMb)}`
+                : 'Estimating device storage...'}
             </span>
           </div>
           <div className="stg-sbar">
@@ -198,7 +208,7 @@ export const DownloadsPage: React.FC = () => {
               </div>
               <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '1rem' }}>No downloads yet</h3>
               <p style={{ maxWidth: '20rem', margin: '0.6rem auto', opacity: 0.6, fontSize: '0.88rem' }}>
-                Titles you download will show up here so you can watch them offline anytime.
+                Titles you download will show up here so you can watch them offline anytime with OPFS.
               </p>
             </div>
           ) : (

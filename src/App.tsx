@@ -15,13 +15,16 @@ import { PlayerPage } from './pages/PlayerPage.tsx';
 import { ScrollManager } from './components/ScrollManager.tsx';
 import { GlobalSvgSymbols } from './components/GlobalSvgSymbols.tsx';
 import { GlobalDownloadToast } from './components/GlobalDownloadToast.tsx';
+import { PWAInstallStrip } from './components/PWAInstallStrip.tsx';
 
 import { DownloadsPage } from './pages/DownloadsPage.tsx';
+import { ShortsPage } from './pages/ShortsPage.tsx';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <PWAInstallStrip />
         <GlobalSvgSymbols />
         <GlobalDownloadToast />
         <ScrollManager />
@@ -45,6 +48,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shorts"
+            element={
+              <ProtectedRoute>
+                <ShortsPage />
               </ProtectedRoute>
             }
           />

@@ -12,13 +12,14 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
   const { user, profile, logout } = useAuth();
 
   const isHome = location.pathname === '/';
+  const isShorts = location.pathname === '/shorts';
   const isSearch = location.pathname === '/search';
   const isDownloads = location.pathname === '/downloads';
   const isProfile = location.pathname === '/profile';
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
-  const handleNavClick = (tab: 'home' | 'search' | 'downloads' | 'profile') => {
+  const handleNavClick = (tab: 'home' | 'shorts' | 'search' | 'downloads' | 'profile') => {
     setShowProfileMenu(false);
     if (tab === 'home') {
       if (isHome) {
@@ -29,6 +30,10 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
         }
       } else {
         navigate('/');
+      }
+    } else if (tab === 'shorts') {
+      if (!isShorts) {
+        navigate('/shorts');
       }
     } else if (tab === 'search') {
       if (!isSearch) {
@@ -87,6 +92,19 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
         >
           <svg className="i">
             <use href="#home" />
+          </svg>
+        </button>
+
+        {/* Shorts */}
+        <button
+          className={`nb ${isShorts ? 'on' : ''}`}
+          aria-label="Shorts"
+          aria-current={isShorts ? 'page' : undefined}
+          onClick={() => handleNavClick('shorts')}
+          title="Shorts"
+        >
+          <svg className="i">
+            <use href="#shorts" />
           </svg>
         </button>
 

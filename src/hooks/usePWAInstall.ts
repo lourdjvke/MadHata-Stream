@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -6,55 +6,96 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
+    if (typeof window !== 'undefined' && (window as any).__pwaInstallPrompt) {
+      return (window as any).__pwaInstallPrompt as BeforeInstallPromptEvent;
+    }
+    return null;
+  });
+
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    );
+  });
+
+  const [isIOS, setIsIOS] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent.toLowerCase();
+    return /iphone|ipad|ipod/.test(ua);
+  });
 
   useEffect(() => {
-    // Detect standalone display mode
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+    // Check standalone mode
+    const checkStandalone = () => {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+      setIsInstalled(standalone);
+    };
 
-    // Detect iOS devices
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIOSDevice);
+    checkStandalone();
+    const mql = window.matchMedia('(display-mode: standalone)');
+    mql.addEventListener('change', checkStandalone);
 
-    const handleBeforeInstallPrompt = (e: Event) => {
+    // If global prompt already exists, use it
+    if ((window as any).__pwaInstallPrompt) {
+      setDeferredPrompt((window as any).__pwaInstallPrompt);
+    }
+
+    const handlePrompt = (e: Event) => {
       e.preventDefault();
+      (window as any).__pwaInstallPrompt = e;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    const handleCustomPrompt = () => {
+      if ((window as any).__pwaInstallPrompt) {
+        setDeferredPrompt((window as any).__pwaInstallPrompt);
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      (window as any).__pwaInstallPrompt = null;
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('beforeinstallprompt', handlePrompt);
+    window.addEventListener('madhata-pwa-installable', handleCustomPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      mql.removeEventListener('change', checkStandalone);
+      window.removeEventListener('beforeinstallprompt', handlePrompt);
+      window.removeEventListener('madhata-pwa-installable', handleCustomPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  const install = async () => {
-    if (!deferredPrompt) return false;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-      return true;
+  const install = useCallback(async () => {
+    const promptEvent = deferredPrompt || (window as any).__pwaInstallPrompt;
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+          setDeferredPrompt(null);
+          (window as any).__pwaInstallPrompt = null;
+          return true;
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
     }
     return false;
-  };
+  }, [deferredPrompt]);
 
   return {
-    isInstallable: !!deferredPrompt,
+    isInstallable: !!deferredPrompt || !!(typeof window !== 'undefined' && (window as any).__pwaInstallPrompt),
     isInstalled,
     isIOS,
     install,

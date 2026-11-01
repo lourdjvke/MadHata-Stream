@@ -51,6 +51,7 @@ export const PlayerPage: React.FC = () => {
     const targetUrl = searchParams.get('url');
     const targetSource = searchParams.get('source') || '1';
     const epParam = searchParams.get('ep') || searchParams.get('episode');
+    const targetId = searchParams.get('id') || searchParams.get('mediaId');
 
     let ei = epParam !== null && !isNaN(+epParam) ? Math.max(0, +epParam) : 0;
 
@@ -426,17 +427,19 @@ export const PlayerPage: React.FC = () => {
       });
 
       // Save to Firebase Realtime Database for active user
-      if (auth.currentUser) {
-        saveWatchProgress(auth.currentUser.uid, {
-          id: mediaId,
-          title: activeMedia.cleanTitle || activeMedia.title,
-          poster: activeMedia.poster,
-          url: activeMedia.url || targetUrl || '',
-          source: activeMedia.source || targetSource || '1',
-          label: EPS[ei] ? `E${ei + 1} “${EPS[ei]}”` : 'Movie',
-          duration: Math.round(dur / 60) || 50,
-          progress: progressVal,
-        });
+      if (auth.currentUser && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          saveWatchProgress(auth.currentUser.uid, {
+            id: mediaId,
+            title: activeMedia.cleanTitle || activeMedia.title,
+            poster: activeMedia.poster,
+            url: activeMedia.url || targetUrl || '',
+            source: activeMedia.source || targetSource || '1',
+            label: EPS[ei] ? `E${ei + 1} “${EPS[ei]}”` : 'Movie',
+            duration: Math.round(dur / 60) || 50,
+            progress: progressVal,
+          }).catch(() => {});
+        } catch {}
       }
     }
 
@@ -461,16 +464,25 @@ export const PlayerPage: React.FC = () => {
     }
 
     async function resolveSource(i: number) {
+      await opfsService.whenReady();
+      const doneList = opfsService.getDoneDownloads();
+      const matched = doneList.find((d) => String(d.id) === String(mediaId));
+      if (matched) {
+        const opfsUrl = await opfsService.getPlaybackUrl(mediaId, matched.type, i);
+        if (opfsUrl) {
+          console.log('Playing from OPFS:', opfsUrl);
+          blobUrls.push(opfsUrl);
+          return opfsUrl;
+        }
+      }
+
       const activeMedia = getStoredActiveMedia();
       const type = activeMedia?.downloads?.length ? 'series' : 'movie';
-      const mediaId = activeMedia?.id || activeMedia?.slug || mediaTitle;
-
-      // Try OPFS first for offline playback
-      const opfsUrl = await opfsService.getPlaybackUrl(mediaId, type, i);
-      if (opfsUrl) {
-        console.log('Playing from OPFS:', opfsUrl);
-        blobUrls.push(opfsUrl);
-        return opfsUrl;
+      const fallbackOpfs = await opfsService.getPlaybackUrl(mediaId, type, i);
+      if (fallbackOpfs) {
+        console.log('Playing from OPFS fallback:', fallbackOpfs);
+        blobUrls.push(fallbackOpfs);
+        return fallbackOpfs;
       }
 
       return VIDEO_URLS[i] || VIDEO_URLS[0] || DEFAULT_SRC;
@@ -884,7 +896,7 @@ export const PlayerPage: React.FC = () => {
     /* Dynamic Media Loading & Reload Resilience */
     const storedMedia = getStoredActiveMedia();
     const activeTargetUrl = targetUrl || storedMedia?.url || storedMedia?.original_url;
-    const mediaId = storedMedia?.id || storedMedia?.slug || (activeTargetUrl ? activeTargetUrl : 'HOUSES & DRAGONS');
+    const mediaId = targetId || storedMedia?.id || storedMedia?.slug || (activeTargetUrl ? activeTargetUrl : 'HOUSES & DRAGONS');
 
     async function initializeMetadata() {
       // Ensure service is initialized (crucial for offline)
@@ -892,29 +904,37 @@ export const PlayerPage: React.FC = () => {
 
       // 1. Try to get metadata from OPFS first (Offline path)
       const offlineMeta = await opfsService.getOfflineMetadata(mediaId);
-      if (offlineMeta) {
-        mediaTitle = offlineMeta.title || mediaTitle;
-        seasonLabel = offlineMeta.episode ? offlineMeta.episode.split(':')[0] : 'Season 1';
-        
-        if (offlineMeta.type === 'series') {
-          // For series, we might have multiple episodes in DoneDownloads
-          const stats = await opfsService.getStorageStats() as any;
-          const doneItem = stats.done?.find((d: any) => String(d.id) === String(mediaId));
-          if (doneItem && doneItem.eps) {
-            EPS = doneItem.eps.map((e: any) => e.sub);
-            VIDEO_URLS = doneItem.eps.map(() => ''); // Placeholders, will be resolved by resolveSource
+      const doneItem = opfsService.getDoneDownloads().find((d) => String(d.id) === String(mediaId));
+
+      if (offlineMeta || doneItem) {
+        mediaTitle = offlineMeta?.title || doneItem?.t || mediaTitle;
+        const mediaType = doneItem?.type || offlineMeta?.type || 'movie';
+        seasonLabel = offlineMeta?.episode ? offlineMeta.episode.split(':')[0] : 'Season 1';
+
+        if (mediaType === 'series') {
+          if (doneItem && doneItem.type === 'series' && doneItem.eps?.length) {
+            EPS = doneItem.eps.map((e) => e.sub);
+            VIDEO_URLS = doneItem.eps.map(() => '');
+          } else if (offlineMeta?.episodes?.length) {
+            EPS = offlineMeta.episodes.map((e: any) => e.sub);
+            VIDEO_URLS = offlineMeta.episodes.map(() => '');
+          } else {
+            EPS = [offlineMeta?.subtitle || 'Episode 1'];
+            VIDEO_URLS = [''];
           }
         } else {
-          EPS = [offlineMeta.subtitle || 'Movie'];
+          EPS = [offlineMeta?.subtitle || doneItem?.t || 'Movie'];
           VIDEO_URLS = [''];
         }
-        
-        ei = clamp(ei, 0, EPS.length - 1);
+
+        ei = clamp(ei, 0, Math.max(0, EPS.length - 1));
         renderEpisodesDrawer();
         mark();
+
         const src = await resolveSource(ei);
         if (src) {
           v.src = src;
+          v.load();
         }
         return;
       }

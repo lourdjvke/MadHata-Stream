@@ -31,6 +31,7 @@ export const ProfilePage: React.FC = () => {
     totalWatchMinutes: 142 * 60,
     totalTitlesWatched: 0,
     totalWatchlistCount: 0,
+    totalDownloads: 0,
     lastUpdated: Date.now(),
   });
 

@@ -11,35 +11,59 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        includeAssets: [
+          'favicon.ico',
+          'apple-touch-icon.png',
+          'icon.png',
+          'icon.jpeg',
+          'pwa-192.png',
+          'pwa-512.png',
+          'pwa-maskable-512.png',
+        ],
         manifest: {
           id: '/',
           name: 'MadHata Movies & Series',
           short_name: 'MadHata',
-          description: 'Stream and download movies and series for free on MadHata.',
+          description: 'Stream and download high-definition movies and series for free on MadHata with complete offline playback.',
           theme_color: '#0b0e16',
           background_color: '#0b0e16',
           display: 'standalone',
+          orientation: 'any',
           start_url: '/',
           scope: '/',
           icons: [
             {
-              src: '/icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: '/pwa-192.png',
+              sizes: '192x192',
+              type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              src: '/pwa-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: '/pwa-maskable-512.png',
+              sizes: '512x512',
+              type: 'image/png',
               purpose: 'maskable',
+            },
+            {
+              src: '/icon.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any',
             },
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          navigateFallback: 'index.html',
+          maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpeg,jpg,woff,woff2}'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api/],
+          cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -79,7 +103,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {
@@ -88,4 +112,3 @@ export default defineConfig(() => {
     },
   };
 });
-

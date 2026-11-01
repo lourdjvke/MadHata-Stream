@@ -25,6 +25,10 @@ export const GlobalSvgSymbols: React.FC = () => {
         <symbol id="bolt" viewBox="0 0 24 24">
           <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
         </symbol>
+        <symbol id="shorts" viewBox="0 0 24 24">
+          <rect x="6" y="3" width="12" height="18" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <polygon points="10.5 9 15 12 10.5 15" fill="currentColor" stroke="none" />
+        </symbol>
         <symbol id="bell" viewBox="0 0 24 24">
           <path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4" />
         </symbol>

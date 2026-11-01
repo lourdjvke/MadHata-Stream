@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>TikTok-Style Video Feed - ChartDrama</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- HLS.js for Streaming HLS Video Streams -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  
+  <style>
+    /* Hide scrollbars across browsers while keeping scroll functionality */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* CSS Scroll Snap Rules */
+    .snap-container {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+    .snap-item {
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+    }
+
+    /* Auto Next Focus Mode overlay transitions */
+    .snap-item .bottom-overlay {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .auto-next-mode .snap-item .bottom-overlay {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(16px);
+    }
+
+    /* Screen Slide & Push Animations */
+    .viewport-container {
+      perspective: 1000px;
+    }
+
+    .feed-view, .search-view {
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      backface-visibility: hidden;
+      will-change: transform, opacity;
+    }
+
+    /* Search Active States */
+    .search-active .feed-view {
+      transform: translateX(-100%) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .search-view {
+      transform: translateX(100%) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .search-active .search-view {
+      transform: translateX(0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-white flex items-center justify-center min-h-screen overflow-hidden font-sans select-none">
+
+  <!-- Desktop & Smart TV Centered Phone Container -->
+  <main id="app-container" class="viewport-container relative w-full max-w-md h-screen md:h-[90vh] md:max-h-[850px] bg-black md:rounded-3xl shadow-2xl overflow-hidden border border-gray-800 flex flex-col justify-center">
+
+    <!-- SEARCH / EXIT MODE BUTTON TOP BADGE -->
+    <button id="search-btn" class="absolute top-4 right-4 bg-black/40 hover:bg-black/70 backdrop-blur-md text-white text-xs px-4 py-2 rounded-full z-30 transition-all active:scale-95 border border-white/10 cursor-pointer flex items-center gap-1.5">
+      <i id="search-btn-icon" class="fa-solid fa-magnifying-glass text-[10px]"></i>
+      <span id="search-btn-text">Search</span>
+    </button>
+
+    <!-- Loading Indicator Overlay -->
+    <div id="loading-overlay" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-40 flex flex-col items-center justify-center transition-opacity duration-300">
+      <div class="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+      <p id="loading-text" class="text-xs text-gray-300 font-medium">Loading trending dramas...</p>
+    </div>
+
+    <!-- ================= TIKTOK VIDEO FEED VIEW ================= -->
+    <div id="feed-view" class="feed-view absolute inset-0 w-full h-full z-10">
+      <div id="feed" class="snap-container no-scrollbar w-full h-full overflow-y-scroll relative">
+        <!-- Dynamic Feed Items will be rendered here by JS -->
+      </div>
+    </div>
+
+    <!-- ================= SEARCH PAGE VIEW ================= -->
+    <div id="search-view" class="search-view absolute inset-0 w-full h-full bg-gray-900 p-6 flex flex-col justify-between z-20">
+      <div class="mt-10">
+        <div class="flex items-center justify-between mb-6">
+          <h1 class="text-2xl font-bold tracking-tight text-white">Search</h1>
+          <button id="close-search-btn" class="text-gray-400 hover:text-white text-sm px-3 py-1 rounded-full bg-white/5 border border-white/10 cursor-pointer">
+            Back
+          </button>
+        </div>
+
+        <form id="search-form" onsubmit="return false;">
+          <div class="relative">
+            <input 
+              type="search" 
+              id="search-input" 
+              placeholder="Search dramas (e.g. CEO, love)..." 
+              class="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-400 text-sm rounded-xl pl-4 pr-10 py-3 focus:outline-none focus:border-teal-500 transition-colors"
+              autocomplete="off">
+            <button type="submit" class="absolute right-3 top-3 text-gray-400 hover:text-teal-400">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+        </form>
+
+        <div class="mt-6 space-y-3">
+          <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Quick Searches</p>
+          <div class="flex flex-wrap gap-2 text-xs text-gray-300">
+            <button class="tag-btn bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700/50 cursor-pointer">CEO</button>
+            <button class="tag-btn bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700/50 cursor-pointer">Revenge</button>
+            <button class="tag-btn bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700/50 cursor-pointer">Love</button>
+            <button class="tag-btn bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700/50 cursor-pointer">Secret</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-center text-gray-500 mb-2">Press Enter or search button to load results into feed</p>
+    </div>
+
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const API = 'https://chartdrama-api.levity-build.workers.dev';
+
+      const appContainer = document.getElementById('app-container');
+      const feed = document.getElementById('feed');
+      const searchBtn = document.getElementById('search-btn');
+      const closeSearchBtn = document.getElementById('close-search-btn');
+      const searchInput = document.getElementById('search-input');
+      const searchForm = document.getElementById('search-form');
+      const loadingOverlay = document.getElementById('loading-overlay');
+      const loadingText = document.getElementById('loading-text');
+
+      let feedItems = []; // List of drama objects { slug, title, poster }
+      let activeHls = null;
+      let currentIdx = 0;
+      let isSearchOpen = false;
+      let observer = null;
+
+      // Helper API Request function
+      async function getJson(path) {
+        const res = await fetch(API + path);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Request failed');
+        return data;
+      }
+
+      function showLoading(msg = 'Loading...') {
+        loadingText.textContent = msg;
+        loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      }
+
+      function hideLoading() {
+        loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+      }
+
+      // Helper function to stop current video and destroy HLS instance
+      function stopActiveVideo() {
+        if (activeHls) {
+          activeHls.destroy();
+          activeHls = null;
+        }
+        document.querySelectorAll('.video-player').forEach(video => {
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+        });
+      }
+
+      // Escape HTML
+      function escapeHtml(text) {
+        return String(text ?? '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+      }
+
+      // Load Trending Series Feed
+      async function fetchTrending() {
+        showLoading('Loading trending dramas...');
+        try {
+          const data = await getJson('/trending');
+          if (data.results && data.results.length) {
+            feedItems = data.results;
+            renderFeed();
+          } else {
+            feed.innerHTML = `<div class="p-8 text-center text-gray-400">No trending dramas found.</div>`;
+          }
+        } catch (err) {
+          console.error(err);
+          feed.innerHTML = `<div class="p-8 text-center text-red-400">Error: ${escapeHtml(err.message)}</div>`;
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // Search Handler
+      async function handleSearch(query) {
+        if (!query.trim()) return;
+        showLoading(`Searching for "${query}"...`);
+        try {
+          const data = await getJson('/search?q=' + encodeURIComponent(query));
+          if (data.results && data.results.length) {
+            feedItems = data.results;
+            renderFeed();
+            closeSearch();
+          } else {
+            alert(`No results found for "${query}"`);
+          }
+        } catch (err) {
+          alert('Search failed: ' + err.message);
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // Render Snappable TikTok Section Containers
+      function renderFeed() {
+        // Destroy existing observers & video instances
+        if (observer) observer.disconnect();
+        stopActiveVideo();
+
+        currentIdx = 0;
+        feed.scrollTop = 0;
+
+        feed.innerHTML = feedItems.map((item, idx) => `
+          <section class="snap-item relative w-full h-full flex-shrink-0 bg-black overflow-hidden flex items-center justify-center" data-index="${idx}" data-slug="${escapeHtml(item.slug)}">
+            <video 
+              class="video-player w-full h-full object-cover cursor-pointer"
+              loop 
+              playsinline 
+              muted
+              crossorigin="anonymous"
+              poster="${escapeHtml(item.poster || '')}">
+            </video>
+            
+            <div class="play-overlay absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity duration-300 pointer-events-none z-10">
+              <i class="fa-solid fa-play text-white/80 text-6xl drop-shadow-lg"></i>
+            </div>
+
+            <!-- Bottom Content Info -->
+            <div class="bottom-overlay absolute bottom-6 left-4 right-4 z-20 text-white pointer-events-none drop-shadow-md">
+              <h2 class="text-base font-bold tracking-wide flex items-center gap-2">
+                @${escapeHtml(item.title)}
+              </h2>
+              
+              <div class="synopsis-container mt-1 text-xs text-gray-200 line-clamp-2 max-h-12 overflow-hidden transition-all duration-300 pointer-events-auto">
+                <span class="synopsis-text">Fetching details...</span>
+              </div>
+              
+              <button class="toggle-synopsis text-[10px] text-teal-400 font-semibold uppercase mt-0.5 pointer-events-auto hidden">More</button>
+
+              <!-- Inline Episode Carousel Overlay -->
+              <div class="episodes-overlay hidden mt-3 pt-2 border-t border-white/10 pointer-events-auto">
+                <p class="text-[10px] uppercase font-bold tracking-wider text-teal-400 mb-1.5 flex items-center justify-between">
+                  <span>Episodes</span>
+                  <span class="episodes-count text-gray-400 font-normal">0 items</span>
+                </p>
+                <div class="episodes-carousel flex gap-2 overflow-x-auto no-scrollbar py-1">
+                  <!-- Dynamic Episode Chips -->
+                  <div class="text-xs text-gray-400 italic">Loading episodes...</div>
+                </div>
+              </div>
+
+              <!-- Floating Glassmorphic Action Icons -->
+              <div class="flex items-center gap-3 mt-3 pointer-events-auto">
+                <button class="action-plus w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white active:scale-95 transition-transform shadow-lg hover:bg-white/20 cursor-pointer" title="Add to list">
+                  <i class="fa-solid fa-plus text-sm"></i>
+                </button>
+                <button class="action-autonext w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white active:scale-95 transition-transform shadow-lg hover:bg-white/20 cursor-pointer" title="Toggle Auto Next Episode">
+                  <i class="fa-solid fa-arrows-up-down text-sm"></i>
+                </button>
+                <button class="action-episodes w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white active:scale-95 transition-transform shadow-lg hover:bg-white/20 cursor-pointer" title="Toggle Episodes Carousel">
+                  <i class="fa-solid fa-tv text-sm"></i>
+                </button>
+                <button class="action-mute w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white active:scale-95 transition-transform shadow-lg hover:bg-white/20 cursor-pointer" title="Mute / Unmute">
+                  <i class="fa-solid fa-volume-xmark text-sm mute-icon"></i>
+                </button>
+              </div>
+            </div>
+          </section>
+        `).join('');
+
+        setupIntersectionObserver();
+        attachFeedEvents();
+      }
+
+      // Helper function to update top button state when Auto Next is toggled
+      function setAutoNextMode(enabled) {
+        appContainer.classList.toggle('auto-next-mode', enabled);
+        const searchBtnText = document.getElementById('search-btn-text');
+        const searchBtnIcon = document.getElementById('search-btn-icon');
+
+        if (enabled) {
+          searchBtnText.textContent = 'Exit mode';
+          searchBtnIcon.className = 'fa-solid fa-compress text-[10px]';
+          searchBtn.classList.add('bg-teal-600/80', 'border-teal-400');
+        } else {
+          searchBtnText.textContent = 'Search';
+          searchBtnIcon.className = 'fa-solid fa-magnifying-glass text-[10px]';
+          searchBtn.classList.remove('bg-teal-600/80', 'border-teal-400');
+        }
+      }
+
+      // Attach feed interaction events
+      function attachFeedEvents() {
+        const sections = document.querySelectorAll('.snap-item');
+
+        sections.forEach((section) => {
+          const video = section.querySelector('.video-player');
+          const toggleSyn = section.querySelector('.toggle-synopsis');
+          const synContainer = section.querySelector('.synopsis-container');
+          const epBtn = section.querySelector('.action-episodes');
+          const epOverlay = section.querySelector('.episodes-overlay');
+          const autonextBtn = section.querySelector('.action-autonext');
+          const muteBtn = section.querySelector('.action-mute');
+          const muteIcon = section.querySelector('.mute-icon');
+
+          // Initialize Auto-Next flag on section
+          section._autoNextEnabled = false;
+
+          // Toggle Play / Pause on Video click
+          video.addEventListener('click', () => {
+            if (isSearchOpen) return;
+            const overlay = section.querySelector('.play-overlay');
+
+            if (video.paused) {
+              video.play().then(() => { if (overlay) overlay.style.opacity = '0'; }).catch(() => {});
+            } else {
+              video.pause();
+              if (overlay) overlay.style.opacity = '1';
+            }
+          });
+
+          // Handle Video Ended (Auto-Next Episode logic)
+          video.addEventListener('ended', () => {
+            if (section._autoNextEnabled && section._episodes && section._episodes.length > 0) {
+              const currentEpIdx = section._currentEpIndex || 0;
+              const nextEpIdx = currentEpIdx + 1;
+
+              if (nextEpIdx < section._episodes.length) {
+                // Play next episode in current series
+                section._currentEpIndex = nextEpIdx;
+                updateActiveEpisodeChip(section, nextEpIdx);
+                playEpisodeStream(video, section._episodes[nextEpIdx].stream_url, section._episodes[nextEpIdx].format, false);
+              }
+            }
+          });
+
+          // Toggle Auto Next Episode button
+          if (autonextBtn) {
+            autonextBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              section._autoNextEnabled = !section._autoNextEnabled;
+              autonextBtn.classList.toggle('bg-teal-600', section._autoNextEnabled);
+              autonextBtn.classList.toggle('border-teal-400', section._autoNextEnabled);
+              autonextBtn.classList.toggle('bg-white/10', !section._autoNextEnabled);
+
+              // Enable/disable Auto Next focus UI mode
+              setAutoNextMode(section._autoNextEnabled);
+            });
+          }
+
+          // Mute / Unmute Button Handler
+          if (muteBtn) {
+            muteBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              video.muted = !video.muted;
+              updateMuteIcon(video, muteIcon, muteBtn);
+            });
+          }
+
+          // Update mute status icon dynamically
+          video.addEventListener('volumechange', () => {
+            updateMuteIcon(video, muteIcon, muteBtn);
+          });
+
+          // Synopsis expand/collapse toggle
+          if (toggleSyn) {
+            toggleSyn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const isExpanded = synContainer.classList.contains('line-clamp-none');
+              if (isExpanded) {
+                synContainer.classList.add('line-clamp-2');
+                synContainer.classList.remove('line-clamp-none', 'max-h-36');
+                toggleSyn.textContent = 'More';
+              } else {
+                synContainer.classList.remove('line-clamp-2');
+                synContainer.classList.add('line-clamp-none', 'max-h-36');
+                toggleSyn.textContent = 'Less';
+              }
+            });
+          }
+
+          // Toggle Episodes Overlay
+          if (epBtn) {
+            epBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              epOverlay.classList.toggle('hidden');
+            });
+          }
+        });
+      }
+
+      function updateMuteIcon(video, muteIcon, muteBtn) {
+        if (!muteIcon) return;
+        if (video.muted) {
+          muteIcon.className = 'fa-solid fa-volume-xmark text-sm mute-icon';
+          muteBtn.classList.remove('bg-teal-600/50');
+        } else {
+          muteIcon.className = 'fa-solid fa-volume-high text-sm mute-icon';
+          muteBtn.classList.add('bg-teal-600/50');
+        }
+      }
+
+      function updateActiveEpisodeChip(section, epIndex) {
+        const carousel = section.querySelector('.episodes-carousel');
+        if (!carousel) return;
+        carousel.querySelectorAll('.ep-chip').forEach((c, idx) => {
+          c.classList.toggle('bg-teal-600', idx === epIndex);
+          c.classList.toggle('border-teal-400', idx === epIndex);
+          c.classList.toggle('font-bold', idx === epIndex);
+        });
+      }
+
+      // Intersection Observer for snap scroll detection
+      function setupIntersectionObserver() {
+        const sections = document.querySelectorAll('.snap-item');
+
+        observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const idx = parseInt(entry.target.getAttribute('data-index'));
+              currentIdx = idx;
+              loadAndPlayDrama(entry.target);
+            }
+          });
+        }, { root: feed, threshold: 0.6 });
+
+        sections.forEach(sec => observer.observe(sec));
+      }
+
+      // Load drama details and play episode 0 for active section
+      async function loadAndPlayDrama(section) {
+        stopActiveVideo();
+        const slug = section.getAttribute('data-slug');
+        const video = section.querySelector('.video-player');
+        const synText = section.querySelector('.synopsis-text');
+        const toggleSyn = section.querySelector('.toggle-synopsis');
+        const carousel = section.querySelector('.episodes-carousel');
+        const countSpan = section.querySelector('.episodes-count');
+
+        // Fetch details if not loaded already
+        if (!section.dataset.loaded) {
+          try {
+            const data = await getJson('/details?slug=' + encodeURIComponent(slug));
+            section.dataset.loaded = "true";
+            section._episodes = data.downloads || [];
+            section._currentEpIndex = 0;
+
+            // Update synopsis
+            synText.textContent = data.synopsis || 'No description available.';
+            if (data.synopsis && data.synopsis.length > 80) {
+              toggleSyn.classList.remove('hidden');
+            }
+
+            // Render episode buttons
+            if (section._episodes.length) {
+              countSpan.textContent = `${section._episodes.length} ep`;
+              carousel.innerHTML = section._episodes.map((ep, i) => `
+                <button 
+                  class="ep-chip flex-shrink-0 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-white text-xs hover:bg-teal-600 transition-colors cursor-pointer ${i === 0 ? 'bg-teal-600 border-teal-400 font-bold' : ''}" 
+                  data-index="${i}">
+                  ${escapeHtml(ep.label || `Ep ${i+1}`)}
+                </button>
+              `).join('');
+
+              carousel.querySelectorAll('.ep-chip').forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  const epIndex = parseInt(chip.getAttribute('data-index'));
+                  section._currentEpIndex = epIndex;
+                  updateActiveEpisodeChip(section, epIndex);
+                  playEpisodeStream(video, section._episodes[epIndex].stream_url, section._episodes[epIndex].format, video.muted);
+                });
+              });
+            } else {
+              carousel.innerHTML = `<span class="text-xs text-gray-400">No streamable episodes.</span>`;
+            }
+          } catch (err) {
+            synText.textContent = 'Failed to load details.';
+          }
+        }
+
+        // Play Episode 1 (index 0) by default
+        if (section._episodes && section._episodes.length) {
+          playEpisodeStream(video, section._episodes[section._currentEpIndex || 0].stream_url, section._episodes[section._currentEpIndex || 0].format, true);
+        }
+      }
+
+      // Play video stream using HLS or native video source
+      function playEpisodeStream(video, url, format, startMuted = true) {
+        stopActiveVideo();
+        video.muted = startMuted; // autoplay compliance
+
+        if (format !== 'mp4' && Hls && Hls.isSupported()) {
+          activeHls = new Hls();
+          activeHls.loadSource(url);
+          activeHls.attachMedia(video);
+          activeHls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (!isSearchOpen) video.play().catch(() => {});
+          });
+        } else {
+          video.src = url;
+          if (!isSearchOpen) video.play().catch(() => {});
+        }
+      }
+
+      // Search Views Navigation & Exit Mode logic
+      function openSearch() {
+        // If Auto-Next Mode is currently active, clicking the button exits mode instead of opening search
+        if (appContainer.classList.contains('auto-next-mode')) {
+          const sections = document.querySelectorAll('.snap-item');
+          if (sections[currentIdx]) {
+            sections[currentIdx]._autoNextEnabled = false;
+            const autonextBtn = sections[currentIdx].querySelector('.action-autonext');
+            if (autonextBtn) {
+              autonextBtn.classList.remove('bg-teal-600', 'border-teal-400');
+              autonextBtn.classList.add('bg-white/10');
+            }
+          }
+          setAutoNextMode(false);
+          return;
+        }
+
+        isSearchOpen = true;
+        appContainer.classList.add('search-active');
+        stopActiveVideo();
+        searchBtn.classList.add('hidden');
+        setTimeout(() => searchInput.focus(), 300);
+      }
+
+      function closeSearch() {
+        isSearchOpen = false;
+        appContainer.classList.remove('search-active');
+        searchBtn.classList.remove('hidden');
+        searchInput.blur();
+        
+        // Resume currently snapped video
+        const sections = document.querySelectorAll('.snap-item');
+        if (sections[currentIdx]) {
+          loadAndPlayDrama(sections[currentIdx]);
+        }
+      }
+
+      // Event listeners
+      searchBtn.addEventListener('click', openSearch);
+      closeSearchBtn.addEventListener('click', closeSearch);
+
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSearch(searchInput.value);
+      });
+
+      // Quick Tag Search clicks
+      document.querySelectorAll('.tag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          searchInput.value = btn.textContent;
+          handleSearch(btn.textContent);
+        });
+      });
+
+      // Keyboard / TV Navigation
+      window.addEventListener('keydown', (e) => {
+        if (isSearchOpen) {
+          if (e.key === 'Escape') closeSearch();
+          return;
+        }
+
+        const sections = document.querySelectorAll('.snap-item');
+        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+          e.preventDefault();
+          if (currentIdx < sections.length - 1) {
+            currentIdx++;
+            sections[currentIdx].scrollIntoView({ behavior: 'smooth' });
+          }
+        } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+          e.preventDefault();
+          if (currentIdx > 0) {
+            currentIdx--;
+            sections[currentIdx].scrollIntoView({ behavior: 'smooth' });
+          }
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (sections[currentIdx]) {
+            const video = sections[currentIdx].querySelector('.video-player');
+            if (video) video.click();
+          }
+        }
+      });
+
+      // Initial Fetch
+      fetchTrending();
+    });
+  </script>
+</body>
+</html>
