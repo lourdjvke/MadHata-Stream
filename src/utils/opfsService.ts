@@ -108,6 +108,45 @@ class OPFSService {
     return [...this.activeDownloads];
   }
 
+  public isEpisodeDownloaded(mediaId: string | number, episodeTitleOrLabel: string, mediaTitle?: string): boolean {
+    const cleanId = String(mediaId).trim().toLowerCase();
+    const cleanMediaTitle = mediaTitle ? mediaTitle.trim().toLowerCase() : '';
+    const cleanEp = episodeTitleOrLabel.trim().toLowerCase();
+
+    return this.doneDownloads.some((d) => {
+      const idMatches =
+        String(d.id).trim().toLowerCase() === cleanId ||
+        (cleanMediaTitle && d.t.trim().toLowerCase() === cleanMediaTitle);
+      if (!idMatches) return false;
+
+      if (d.type === 'series') {
+        return d.eps.some((ep) => {
+          const subLower = (ep.sub || '').trim().toLowerCase();
+          const labelLower = (ep.l || '').trim().toLowerCase();
+          return (
+            subLower === cleanEp ||
+            labelLower === cleanEp ||
+            (cleanEp && subLower.includes(cleanEp)) ||
+            (cleanEp && cleanEp.includes(subLower))
+          );
+        });
+      }
+      return true;
+    });
+  }
+
+  public isMediaDownloaded(mediaId: string | number, mediaTitle?: string): boolean {
+    const cleanId = String(mediaId).trim().toLowerCase();
+    const cleanMediaTitle = mediaTitle ? mediaTitle.trim().toLowerCase() : '';
+
+    return this.doneDownloads.some((d) => {
+      return (
+        String(d.id).trim().toLowerCase() === cleanId ||
+        (cleanMediaTitle && d.t.trim().toLowerCase() === cleanMediaTitle)
+      );
+    });
+  }
+
   private async getDownloadsDir(): Promise<FileSystemDirectoryHandle | null> {
     if (!this.isSupported()) return null;
     try {
@@ -520,13 +559,11 @@ class OPFSService {
 
       await this.persistManifest();
       this.notify();
-      this.emitToast(`Downloaded: "${item.t}"`);
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        // Cancelled by user - do not emit error toast
+        // Cancelled by user
       } else {
         console.error('OPFS download task error:', err);
-        this.emitToast(`Error downloading "${item.t}": ${err.message}`);
       }
       this.activeDownloads = this.activeDownloads.filter((a) => a.id !== item.id);
       this.notify();

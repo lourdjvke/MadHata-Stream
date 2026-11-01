@@ -115,10 +115,12 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
     : `${activeSeasonName} (${episodeList.length} episodes)`;
 
   const [activeDownloads, setActiveDownloads] = useState<any[]>([]);
+  const [doneDownloads, setDoneDownloads] = useState<any[]>(() => opfsService.getDoneDownloads());
 
   useEffect(() => {
-    const unsub = opfsService.subscribe((active) => {
+    const unsub = opfsService.subscribe((active, done) => {
       setActiveDownloads(active);
+      setDoneDownloads(done);
     });
     return unsub;
   }, []);
@@ -210,9 +212,29 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
           // Prefer active posterartwork or thumbnail generator frame
           const thumbUrl = activeMedia?.poster || thumbnails[thumbKey];
 
-          const isDownloading = activeDownloads.some(d => d.mediaId === (activeMedia?.id || activeMedia?.slug || activeMedia?.title) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
-          const dlItem = activeDownloads.find(d => d.mediaId === (activeMedia?.id || activeMedia?.slug || activeMedia?.title) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
+          const curMediaId = activeMedia?.id || activeMedia?.slug || activeMedia?.cleanTitle || activeMedia?.title || '';
+          const curMediaTitle = activeMedia?.cleanTitle || activeMedia?.title || '';
+
+          const isDownloading = activeDownloads.some(d => (String(d.mediaId) === String(curMediaId) || d.t === curMediaTitle) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
+          const dlItem = activeDownloads.find(d => (String(d.mediaId) === String(curMediaId) || d.t === curMediaTitle) && (d.sub === ep.title || d.l === `S${selectedSeason + 1}:E${i + 1}`));
           const dlProgress = dlItem ? dlItem.p : 0;
+
+          // Check if this episode is downloaded in OPFS
+          const isDownloaded = opfsService.isEpisodeDownloaded(curMediaId, ep.title, curMediaTitle) ||
+            doneDownloads.some((d) => {
+              const matchesMedia =
+                String(d.id).toLowerCase() === String(curMediaId).toLowerCase() ||
+                (curMediaTitle && d.t?.toLowerCase() === curMediaTitle.toLowerCase());
+              if (!matchesMedia) return false;
+              if (d.type === 'series') {
+                return d.eps?.some((e: any) =>
+                  (e.sub && e.sub.toLowerCase() === ep.title.toLowerCase()) ||
+                  (e.l && e.l.toLowerCase() === `S${selectedSeason + 1}:E${i + 1}`.toLowerCase()) ||
+                  (e.sub && e.sub.toLowerCase().includes(`e${i + 1}`))
+                );
+              }
+              return true;
+            });
 
           return (
             <button
@@ -278,13 +300,34 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
               {ep.downloadUrl && (
                 <span
                   className="b"
-                  title={isDownloading ? `Downloading: ${Math.round(dlProgress * 100)}%` : `Download ${ep.title}`}
-                  onClick={(e) => handleDownloadEpisode(e, ep.downloadUrl, ep.title)}
+                  title={
+                    isDownloaded
+                      ? `${ep.title} downloaded · Offline ready`
+                      : isDownloading
+                      ? `Downloading: ${Math.round(dlProgress * 100)}%`
+                      : `Download ${ep.title}`
+                  }
+                  onClick={(e) => {
+                    if (isDownloaded) {
+                      e.stopPropagation();
+                      if (onPlayEpisode) {
+                        onPlayEpisode(selectedSeason, i);
+                      } else {
+                        navigate('/watch');
+                      }
+                      return;
+                    }
+                    handleDownloadEpisode(e, ep.downloadUrl, ep.title);
+                  }}
                   style={{
                     width: '2.4rem',
                     height: '2.4rem',
                     borderRadius: '50%',
-                    background: isDownloading ? 'rgba(91, 78, 232, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                    background: isDownloaded
+                      ? 'rgba(47, 208, 138, 0.2)'
+                      : isDownloading
+                      ? 'rgba(91, 78, 232, 0.2)'
+                      : 'rgba(255, 255, 255, 0.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -292,14 +335,21 @@ export const EpisodesSection: React.FC<EpisodesSectionProps> = ({
                     flexShrink: 0,
                     position: 'relative',
                     overflow: 'hidden',
-                    border: isDownloading ? '1px solid var(--acc)' : 'none'
+                    border: isDownloaded
+                      ? '1px solid rgba(47, 208, 138, 0.5)'
+                      : isDownloading
+                      ? '1px solid var(--acc)'
+                      : 'none',
+                    color: isDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit',
+                    cursor: 'pointer',
+                    transition: 'all 0.25s ease',
                   }}
                 >
                   {isDownloading && (
                     <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
                   )}
-                  <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ width: '1.1rem', height: '1.1rem', color: isDownloading ? 'var(--acc)' : 'inherit' }}>
-                    <use href={isDownloading ? "#gear" : "#dl"} />
+                  <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ width: '1.1rem', height: '1.1rem', color: isDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit' }}>
+                    <use href={isDownloaded ? "#ck" : isDownloading ? "#gear" : "#dl"} />
                   </svg>
                 </span>
               )}

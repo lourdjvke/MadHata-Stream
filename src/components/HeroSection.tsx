@@ -217,10 +217,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ isTasteInView }) => {
   };
 
   const [activeDownloads, setActiveDownloads] = useState<any[]>([]);
+  const [doneDownloads, setDoneDownloads] = useState<any[]>(() => opfsService.getDoneDownloads());
 
   useEffect(() => {
-    const unsub = opfsService.subscribe((active) => {
+    const unsub = opfsService.subscribe((active, done) => {
       setActiveDownloads(active);
+      setDoneDownloads(done);
     });
     return unsub;
   }, []);
@@ -375,25 +377,57 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ isTasteInView }) => {
               <use href={isInWatchlist ? "#ck" : "#plus"} />
             </svg>
           </button>
-          <button 
-            className="b" 
-            aria-label="Download" 
-            title={isDownloading ? `Downloading: ${Math.round(dlProgress * 100)}%` : "Download"} 
-            onClick={handleDownloadHero}
-            style={{
-              background: isDownloading ? 'rgba(91, 78, 232, 0.2)' : undefined,
-              border: isDownloading ? '1px solid var(--acc)' : 'none',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-          >
-            {isDownloading && (
-              <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
-            )}
-            <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ color: isDownloading ? 'var(--acc)' : 'inherit' }}>
-              <use href={isDownloading ? "#gear" : "#dl"} />
-            </svg>
-          </button>
+          {(() => {
+            const heroMediaId = currentActiveMedia ? (currentActiveMedia.id || currentActiveMedia.slug || currentActiveMedia.cleanTitle || currentActiveMedia.title) : '';
+            const heroMediaTitle = currentActiveMedia ? (currentActiveMedia.cleanTitle || currentActiveMedia.title) : '';
+            const isHeroDownloaded = Boolean(
+              currentActiveMedia && (
+                opfsService.isMediaDownloaded(heroMediaId, heroMediaTitle) ||
+                doneDownloads.some(d =>
+                  String(d.id).toLowerCase() === String(heroMediaId).toLowerCase() ||
+                  d.t?.toLowerCase() === heroMediaTitle.toLowerCase()
+                )
+              )
+            );
+
+            return (
+              <button 
+                className="b" 
+                aria-label="Download" 
+                title={
+                  isHeroDownloaded
+                    ? "Downloaded · Available offline"
+                    : isDownloading
+                    ? `Downloading: ${Math.round(dlProgress * 100)}%`
+                    : "Download"
+                } 
+                onClick={isHeroDownloaded ? () => navigate('/watch') : handleDownloadHero}
+                style={{
+                  background: isHeroDownloaded
+                    ? 'rgba(47, 208, 138, 0.2)'
+                    : isDownloading
+                    ? 'rgba(91, 78, 232, 0.2)'
+                    : undefined,
+                  border: isHeroDownloaded
+                    ? '1px solid rgba(47, 208, 138, 0.5)'
+                    : isDownloading
+                    ? '1px solid var(--acc)'
+                    : 'none',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  color: isHeroDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                {isDownloading && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
+                )}
+                <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ color: isHeroDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit' }}>
+                  <use href={isHeroDownloaded ? "#ck" : isDownloading ? "#gear" : "#dl"} />
+                </svg>
+              </button>
+            );
+          })()}
         </div>
       </div>
 

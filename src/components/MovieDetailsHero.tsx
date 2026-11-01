@@ -99,10 +99,12 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
   };
 
   const [activeDownloads, setActiveDownloads] = React.useState<any[]>([]);
+  const [doneDownloads, setDoneDownloads] = React.useState<any[]>(() => opfsService.getDoneDownloads());
 
   React.useEffect(() => {
-    const unsub = opfsService.subscribe((active) => {
+    const unsub = opfsService.subscribe((active, done) => {
       setActiveDownloads(active);
+      setDoneDownloads(done);
     });
     return unsub;
   }, []);
@@ -143,8 +145,18 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
     }
   };
 
-  const isDownloading = activeMedia && activeDownloads.some(d => d.mediaId === (activeMedia.id || activeMedia.slug || activeMedia.title));
-  const dlProgress = activeMedia ? activeDownloads.find(d => d.mediaId === (activeMedia.id || activeMedia.slug || activeMedia.title))?.p || 0 : 0;
+  const curMediaId = activeMedia ? (activeMedia.id || activeMedia.slug || heroTitle) : '';
+  const isDownloading = activeMedia && activeDownloads.some(d => (String(d.mediaId) === String(curMediaId) || d.t === heroTitle));
+  const dlProgress = activeMedia ? activeDownloads.find(d => (String(d.mediaId) === String(curMediaId) || d.t === heroTitle))?.p || 0 : 0;
+  const isDownloaded = Boolean(
+    activeMedia && (
+      opfsService.isMediaDownloaded(curMediaId, heroTitle) ||
+      doneDownloads.some(d =>
+        String(d.id).toLowerCase() === String(curMediaId).toLowerCase() ||
+        d.t?.toLowerCase() === heroTitle.toLowerCase()
+      )
+    )
+  );
 
   return (
     <section className="hero" style={{ minHeight: 'clamp(34rem, 84svh, 62rem)' }}>
@@ -259,20 +271,36 @@ export const MovieDetailsHero: React.FC<MovieDetailsHeroProps> = ({
           <button 
             className="b" 
             aria-label="Download" 
-            onClick={handleDownloadMovie} 
-            title={isDownloading ? `Downloading: ${Math.round(dlProgress * 100)}%` : "Download Video"}
+            onClick={isDownloaded ? () => navigate('/watch') : handleDownloadMovie} 
+            title={
+              isDownloaded
+                ? `${heroTitle} downloaded · Available offline`
+                : isDownloading
+                ? `Downloading: ${Math.round(dlProgress * 100)}%`
+                : "Download Video"
+            }
             style={{
-              background: isDownloading ? 'rgba(91, 78, 232, 0.2)' : undefined,
-              border: isDownloading ? '1px solid var(--acc)' : 'none',
+              background: isDownloaded
+                ? 'rgba(47, 208, 138, 0.2)'
+                : isDownloading
+                ? 'rgba(91, 78, 232, 0.2)'
+                : undefined,
+              border: isDownloaded
+                ? '1px solid rgba(47, 208, 138, 0.5)'
+                : isDownloading
+                ? '1px solid var(--acc)'
+                : 'none',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              color: isDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit',
+              transition: 'all 0.25s ease',
             }}
           >
             {isDownloading && (
               <div style={{ position: 'absolute', inset: 0, background: 'var(--acc)', opacity: 0.15, transformOrigin: 'left', transform: `scaleX(${dlProgress})` }} />
             )}
-            <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ color: isDownloading ? 'var(--acc)' : 'inherit' }}>
-              <use href={isDownloading ? "#gear" : "#dl"} />
+            <svg className={`i ${isDownloading ? 'dl-spinner' : ''}`} style={{ color: isDownloaded ? '#2fd08a' : isDownloading ? 'var(--acc)' : 'inherit' }}>
+              <use href={isDownloaded ? "#ck" : isDownloading ? "#gear" : "#dl"} />
             </svg>
           </button>
         </div>
