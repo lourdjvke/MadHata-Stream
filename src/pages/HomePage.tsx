@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { NavigationRail } from '../components/NavigationRail.tsx';
 import { HeroSection } from '../components/HeroSection.tsx';
+import { InterestsSection } from '../components/InterestsSection.tsx';
 import { AggregatedMediaSection } from '../components/AggregatedMediaSection.tsx';
 import { RecentlyWatchedSection } from '../components/RecentlyWatchedSection.tsx';
 import { TasteCarousel } from '../components/TasteCarousel.tsx';
@@ -24,6 +25,7 @@ export const HomePage: React.FC = () => {
       <NavigationRail onHomeClick={handleHomeClick} />
       <main>
         <HeroSection onSeeAllClick={handleSeeAll} isTasteInView={isTasteInView} />
+        <InterestsSection />
         <RecentlyWatchedSection />
         <AggregatedMediaSection onSeeAllClick={handleSeeAll} />
         <TasteCarousel onTasteInViewChange={setIsTasteInView} />
