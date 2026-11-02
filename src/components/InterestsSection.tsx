@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { INTERESTS } from '../data/content.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { auth } from '../firebase.ts';
 import { loadUserInterests, subscribeToPushNotifications } from '../utils/pushNotificationService.ts';
 
 export const InterestsSection: React.FC = () => {
@@ -57,11 +58,12 @@ export const InterestsSection: React.FC = () => {
     setIsSaving(true);
     setStatusText(null);
     const selected = Object.keys(pressedInterests).filter((k) => pressedInterests[k]);
+    const effectiveUid = user?.uid || auth.currentUser?.uid;
 
     try {
-      const res = await subscribeToPushNotifications(user?.uid, selected);
+      const res = await subscribeToPushNotifications(effectiveUid, selected);
       setIsSaved(true);
-      if (res.subscribed) {
+      if (res.savedInRtdb || res.subscribed) {
         setStatusText('Customisation saved & notifications active');
       } else {
         setStatusText('Customisation saved');

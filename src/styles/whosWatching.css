@@ -618,6 +618,143 @@
   color: #6f778b !important;
 }
 
+/* Guest Button Styling */
+.whos-watching-root .guest-wrap {
+  margin-top: 1rem !important;
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+.whos-watching-root .guest-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: .55rem !important;
+  padding: .62rem 1.6rem !important;
+  border-radius: 99px !important;
+  border: 1px solid rgba(255, 255, 255, .18) !important;
+  background: rgba(255, 255, 255, .05) !important;
+  color: #d1d5db !important;
+  font-size: .88rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all .25s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.whos-watching-root .guest-btn:hover {
+  background: rgba(255, 255, 255, .12) !important;
+  border-color: rgba(255, 255, 255, .42) !important;
+  color: #ffffff !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.whos-watching-root .guest-btn:active {
+  transform: scale(.96) !important;
+}
+
+.whos-watching-root .guest-btn[disabled] {
+  opacity: .7 !important;
+  pointer-events: none !important;
+}
+
+.whos-watching-root .guest-btn .guest-sp {
+  display: none;
+  width: .95rem;
+  height: .95rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .3);
+  border-top-color: #fff;
+  animation: sp .7s linear infinite;
+}
+
+.whos-watching-root .guest-btn.ld .guest-sp {
+  display: block;
+}
+
+/* Divider */
+.whos-watching-root .or-divider {
+  display: flex !important;
+  align-items: center !important;
+  gap: .8rem !important;
+  margin: .35rem 0 !important;
+  color: #7f879b !important;
+  font-size: .78rem !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+}
+
+.whos-watching-root .or-divider::before,
+.whos-watching-root .or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, .12);
+}
+
+/* Google Sign-up Button */
+.whos-watching-root .btn-google {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: .75rem !important;
+  width: 100% !important;
+  height: 3.6rem !important;
+  border-radius: 99px !important;
+  background: rgba(255, 255, 255, .07) !important;
+  border: 1px solid rgba(255, 255, 255, .18) !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .2) !important;
+  transition: transform .35s var(--ease), background .25s, border-color .25s, box-shadow .35s !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.whos-watching-root .btn-google:hover {
+  background: rgba(255, 255, 255, .14) !important;
+  border-color: rgba(255, 255, 255, .45) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35) !important;
+}
+
+.whos-watching-root .btn-google:active {
+  transform: scale(.97) !important;
+}
+
+.whos-watching-root .btn-google[disabled] {
+  pointer-events: none !important;
+  opacity: .75 !important;
+}
+
+.whos-watching-root .google-icon {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  flex-shrink: 0 !important;
+}
+
+.whos-watching-root .btn-google .sp {
+  display: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, .35);
+  border-top-color: #fff;
+  animation: sp .7s linear infinite;
+}
+
+.whos-watching-root .btn-google.ld .sp {
+  display: block;
+}
+
+.whos-watching-root .btn-google.ld .google-icon {
+  display: none;
+}
+
 @media (max-height: 520px) and (orientation: landscape) {
   .whos-watching-root .avw {
     margin-bottom: .8rem !important;

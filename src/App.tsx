@@ -20,12 +20,14 @@ import { PWAInstallStrip } from './components/PWAInstallStrip.tsx';
 import { DownloadsPage } from './pages/DownloadsPage.tsx';
 import { ShortsPage } from './pages/ShortsPage.tsx';
 import { BackgroundAnalyticsTracker } from './components/BackgroundAnalyticsTracker.tsx';
+import { BackgroundPushWorker } from './components/BackgroundPushWorker.tsx';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <BackgroundAnalyticsTracker />
+        <BackgroundPushWorker />
         <PWAInstallStrip />
         <GlobalSvgSymbols />
         <GlobalDownloadToast />
