@@ -143,10 +143,10 @@ async function encryptPayload(payloadJson, p256dhBase64, authBase64) {
     256
   );
 
-  // 4. HKDF derivation
-  const authKey = await crypto.subtle.importKey(
+  // 4. HKDF derivation (RFC 8291 Section 3.2: PRK_key = HKDF-Extract(salt = auth_secret, IKM = ecdh_secret))
+  const sharedKey = await crypto.subtle.importKey(
     'raw',
-    authSecretBytes,
+    sharedSecret,
     'HKDF',
     false,
     ['deriveBits']
@@ -159,8 +159,8 @@ async function encryptPayload(payloadJson, p256dhBase64, authBase64) {
   ikmInfo.set(localPubBytes, infoPrefix.length + clientPubBytes.length);
 
   const ikmBits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt: sharedSecret, info: ikmInfo },
-    authKey,
+    { name: 'HKDF', hash: 'SHA-256', salt: authSecretBytes, info: ikmInfo },
+    sharedKey,
     256
   );
 
