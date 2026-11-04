@@ -246,6 +246,27 @@ export const ProfilePage: React.FC = () => {
                 </svg>
                 Log out
               </button>
+
+              <button
+                className="lo"
+                type="button"
+                onClick={() => navigate('/stream-rooms')}
+                style={{
+                  background: 'linear-gradient(135deg, #7928ca 0%, #9333ea 100%)',
+                  color: '#fff',
+                  borderColor: 'rgba(255,255,255,0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  fontWeight: 600,
+                  boxShadow: 'none',
+                  marginTop: '0.65rem',
+                }}
+              >
+                <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>🍿</span>
+                Stream Rooms
+              </button>
             </section>
 
             {/* Tabs Row */}

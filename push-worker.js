@@ -388,7 +388,7 @@ async function pickRecommendationForUser(interests, trendingShorts) {
 }
 
 // Core dispatch function with RTDB status tracking ("pending" -> "sent" / "failed")
-async function dispatchPushNotifications(testNotification = null, force = false, targetUid = null) {
+async function dispatchPushNotifications(testNotification = null, force = false, targetUid = null, targetUids = null) {
   // 1. Fetch subscriptions from RTDB
   const subsRes = await fetch(`${RTDB_BASE}/push_subscriptions.json`);
   if (!subsRes.ok) {
@@ -400,7 +400,9 @@ async function dispatchPushNotifications(testNotification = null, force = false,
   }
 
   let subscribers = Object.values(subsData);
-  if (targetUid) {
+  if (Array.isArray(targetUids) && targetUids.length > 0) {
+    subscribers = subscribers.filter((s) => targetUids.includes(s.uid));
+  } else if (targetUid) {
     subscribers = subscribers.filter((s) => s.uid === targetUid);
   }
 
@@ -573,20 +575,25 @@ export default {
       }
     }
 
-    // Trigger cron / manual dispatch endpoint (accepts ?force=true and ?uid=...)
+    // Trigger cron / manual dispatch endpoint (accepts ?force=true, ?uid=..., and body.targetUids)
     if (url.pathname === '/dispatch' || url.pathname === '/trigger-cron' || url.pathname === '/send-test-push') {
       let customNotification = null;
+      let bodyTargetUids = null;
+      let bodyTargetUid = null;
       if (request.method === 'POST') {
         try {
           const body = await request.json();
           if (body.title || body.body) customNotification = body;
+          if (Array.isArray(body.targetUids)) bodyTargetUids = body.targetUids;
+          if (body.targetUid) bodyTargetUid = body.targetUid;
         } catch {}
       }
 
       const force = url.searchParams.get('force') === 'true' || request.method === 'POST';
-      const targetUid = url.searchParams.get('uid');
+      const targetUid = bodyTargetUid || url.searchParams.get('uid');
+      const targetUids = bodyTargetUids || (url.searchParams.get('uids') ? url.searchParams.get('uids').split(',') : null);
 
-      const summary = await dispatchPushNotifications(customNotification, force, targetUid);
+      const summary = await dispatchPushNotifications(customNotification, force, targetUid, targetUids);
       return corsResponse(JSON.stringify(summary));
     }
 

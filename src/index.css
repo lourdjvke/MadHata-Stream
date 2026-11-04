@@ -45,12 +45,19 @@ body {
   overflow-x: hidden;
 }
 
-button, input {
+button, input, select, textarea {
   font: inherit;
   color: inherit;
   background: none;
   border: 0;
+  outline: none !important;
+  box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
+}
+
+*:focus, *:focus-visible, *:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 button {
@@ -93,6 +100,13 @@ button {
   align-items: center;
   gap: .5rem;
   transition: transform .8s var(--ease), opacity .5s;
+}
+
+@media (max-width: 768px) {
+  .rail.hide-mobile,
+  .rail[data-hide-mobile="true"] {
+    display: none !important;
+  }
 }
 
 .logo {
@@ -2590,5 +2604,29 @@ h1 {
     width: max-content;
     max-width: 92vw;
   }
+}
+
+/* Stream Room Scene Reaction Bubbles */
+@keyframes reactionBubbleFloat {
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.15);
+  }
+  80% {
+    opacity: 0.9;
+    transform: translateY(-120px) scale(1);
+  }
+  100% {
+    transform: translateY(-170px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.animate-reaction-float {
+  animation: reactionBubbleFloat 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 

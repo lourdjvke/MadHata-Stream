@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   fetchMediaDetails,
@@ -7,13 +7,45 @@ import {
 } from '../utils/mediaWorkerApi.ts';
 import { setWatchedEp, decodeHtmlEntities, extractSeasonInfo } from '../utils/textUtils.ts';
 import { dbService } from '../utils/db.ts';
-import { auth } from '../firebase.ts';
+import { auth, rtdb } from '../firebase.ts';
 import { saveWatchProgress } from '../utils/userDataService.ts';
 import { opfsService } from '../utils/opfsService.ts';
+import { useAuth } from '../context/AuthContext.tsx';
+import { 
+  recordSceneReaction, 
+  updateRoomPlayback, 
+  StreamRoomReaction 
+} from '../utils/streamRoomService.ts';
+import { ref, onValue, get } from 'firebase/database';
 
 export const PlayerPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user, profile } = useAuth();
+
+  const roomId = searchParams.get('room') || searchParams.get('roomId');
+  const [isSynced, setIsSynced] = useState(true);
+  const isSyncedRef = useRef(isSynced);
+  isSyncedRef.current = isSynced;
+
+  const [bubbles, setBubbles] = useState<Array<{ id: string; emoji: string; x: number; name?: string }>>([]);
+
+  const triggerBubble = (emoji: string, name?: string) => {
+    const id = `${Date.now()}_${Math.random()}`;
+    const x = Math.floor(Math.random() * 60) + 20;
+    setBubbles((prev) => [...prev.slice(-8), { id, emoji, x, name }]);
+    setTimeout(() => {
+      setBubbles((prev) => prev.filter((b) => b.id !== id));
+    }, 2400);
+  };
+
+  const handleSendReaction = (emoji: string, sceneTimeStr: string, activeTitle: string) => {
+    const myName = profile?.name || user?.displayName || 'You';
+    triggerBubble(emoji, myName);
+    if (roomId && user?.uid) {
+      recordSceneReaction(roomId, user.uid, myName, emoji, sceneTimeStr, activeTitle);
+    }
+  };
 
   useEffect(() => {
     const DEFAULT_SRC = 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4';
@@ -282,10 +314,16 @@ export const PlayerPage: React.FC = () => {
       cdStop();
       setPanel(0);
       showUI();
+      if (roomId && isSyncedRef.current) {
+        updateRoomPlayback(roomId, v.currentTime, true, user?.uid || 'user');
+      }
     };
 
     const onPause = () => {
       pl.dataset.p = '0';
+      if (roomId) {
+        setIsSynced(false);
+      }
       if (ign) {
         ign = 0;
         return;
@@ -368,6 +406,7 @@ export const PlayerPage: React.FC = () => {
 
     function seekBy(sec: number) {
       v.currentTime = clamp(v.currentTime + sec, 0, dur);
+      if (roomId) setIsSynced(false);
       cdStop();
       showUI();
     }
@@ -555,15 +594,62 @@ export const PlayerPage: React.FC = () => {
     };
 
     const bkBtn = $('#bk');
-    if (bkBtn) bkBtn.onclick = (e) => {
-      seekBy(-10);
-      spin(e.currentTarget as HTMLElement, 1);
-    };
+    if (bkBtn) {
+      if (roomId) {
+        bkBtn.onclick = (e) => {
+          e.stopPropagation();
+          handleSendReaction('🔥', fmt(v.currentTime), mediaTitle);
+          showUI();
+        };
+      } else {
+        bkBtn.onclick = (e) => {
+          seekBy(-10);
+          spin(e.currentTarget as HTMLElement, 1);
+        };
+      }
+    }
+
     const fwBtn = $('#fw');
-    if (fwBtn) fwBtn.onclick = (e) => {
-      seekBy(10);
-      spin(e.currentTarget as HTMLElement, -1);
-    };
+    if (fwBtn) {
+      if (roomId) {
+        fwBtn.onclick = (e) => {
+          e.stopPropagation();
+          handleSendReaction('🍿', fmt(v.currentTime), mediaTitle);
+          showUI();
+        };
+      } else {
+        fwBtn.onclick = (e) => {
+          seekBy(10);
+          spin(e.currentTarget as HTMLElement, -1);
+        };
+      }
+    }
+
+    const syncBtn = $('#sync-btn');
+    if (syncBtn) {
+      syncBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!roomId) return;
+        try {
+          const snap = await get(ref(rtdb, `watchrooms/${roomId}/playback`));
+          if (snap.exists()) {
+            const pb = snap.val();
+            const elapsed = pb.isPlaying ? (Date.now() - (pb.updatedAt || Date.now())) / 1000 : 0;
+            const targetTime = clamp(pb.currentTime + elapsed, 0, dur);
+            v.currentTime = targetTime;
+            if (pb.isPlaying && v.paused) {
+              v.play().catch(() => {});
+            }
+            setIsSynced(true);
+            showUI();
+          } else {
+            setIsSynced(true);
+          }
+        } catch {
+          setIsSynced(true);
+        }
+      };
+    }
 
     const backBtn = $('#back');
     if (backBtn) backBtn.onclick = () => {
@@ -609,6 +695,7 @@ export const PlayerPage: React.FC = () => {
 
     const onTrkPointerDown = (e: PointerEvent) => {
       sdr = 1;
+      if (roomId) setIsSynced(false);
       trk.setPointerCapture(e.pointerId);
       trk.classList.add('dr');
       if (tip) tip.classList.add('on');
@@ -985,8 +1072,62 @@ export const PlayerPage: React.FC = () => {
     mark();
     showUI();
 
+    // Stream Room Soft-Sync & Real-Time Reactions Listener
+    let unlistenPlayback: (() => void) | null = null;
+    let unlistenReactions: (() => void) | null = null;
+    const mountTime = Date.now();
+
+    if (roomId) {
+      const pbRef = ref(rtdb, `watchrooms/${roomId}/playback`);
+      unlistenPlayback = onValue(pbRef, (snap) => {
+        if (!snap.exists()) return;
+        const pb = snap.val();
+        if (pb.updatedBy === user?.uid) return;
+
+        if (isSyncedRef.current) {
+          const elapsed = pb.isPlaying ? (Date.now() - (pb.updatedAt || Date.now())) / 1000 : 0;
+          const targetTime = clamp(pb.currentTime + elapsed, 0, dur);
+          const diff = Math.abs(v.currentTime - targetTime);
+
+          // Gracefully desync if gap > 120s (2 minutes gap) without buffering everyone
+          if (diff > 120) {
+            setIsSynced(false);
+          } else if (diff > 2.5) {
+            v.currentTime = targetTime;
+          }
+
+          if (pb.isPlaying && v.paused) {
+            v.play().catch(() => {});
+          } else if (!pb.isPlaying && !v.paused) {
+            v.pause();
+          }
+        }
+      });
+
+      const rxRef = ref(rtdb, `watchrooms/${roomId}/reactions`);
+      unlistenReactions = onValue(rxRef, (snap) => {
+        if (!snap.exists()) return;
+        const all = snap.val();
+        const latestKey = Object.keys(all).pop();
+        if (latestKey) {
+          const rx = all[latestKey] as StreamRoomReaction;
+          if (rx.timestamp >= mountTime - 1000 && rx.uid !== user?.uid) {
+            triggerBubble(rx.emoji, rx.userName);
+          }
+        }
+      });
+    }
+
+    const onOffline = () => {
+      if (roomId) setIsSynced(false);
+    };
+    window.addEventListener('offline', onOffline);
+
     /* Clean up all event listeners on unmount */
     return () => {
+      if (unlistenPlayback) unlistenPlayback();
+      if (unlistenReactions) unlistenReactions();
+      window.removeEventListener('offline', onOffline);
       isCancelled = true;
       if (animReqId) cancelAnimationFrame(animReqId);
       if (ht) clearTimeout(ht);
@@ -1043,6 +1184,39 @@ export const PlayerPage: React.FC = () => {
       <div className="pl" id="pl" data-p="0">
         <video id="v" playsInline preload="auto" />
         <div className="surf" id="surf" />
+
+        {/* Floating Scene Reaction Bubbles */}
+        <div 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            zIndex: 35,
+            overflow: 'hidden',
+          }}
+        >
+          {bubbles.map((b) => (
+            <div
+              key={b.id}
+              className="animate-reaction-float"
+              style={{
+                position: 'absolute',
+                bottom: '5.5rem',
+                left: `${b.x}%`,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>{b.emoji}</span>
+              {b.name && (
+                <span style={{ fontSize: '0.62rem', background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.85)', padding: '0.1rem 0.4rem', borderRadius: '999px', marginTop: '0.15rem', whiteSpace: 'nowrap' }}>
+                  {b.name}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* Brightness HUD (Left) */}
         <div className="v-hud l" id="bright-hud">
@@ -1122,6 +1296,57 @@ export const PlayerPage: React.FC = () => {
               </svg>
             </button>
             <h1 id="ttl"> </h1>
+
+            {roomId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.2rem' }}>
+                <button
+                  type="button"
+                  id="sync-btn"
+                  style={{
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    background: isSynced ? 'rgba(255, 255, 255, 0.08)' : 'rgba(245, 158, 11, 0.15)',
+                    color: isSynced ? '#a7f3d0' : '#fde68a',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    cursor: 'pointer',
+                    boxShadow: 'none',
+                    outline: 'none',
+                  }}
+                  title={isSynced ? 'In sync with room (click to toggle)' : 'Click to re-sync with room'}
+                >
+                  <span style={{ fontSize: '0.75rem' }}>⚡</span>
+                  <span>{isSynced ? 'Synced' : 'Re-sync'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/stream-room/${roomId}`)}
+                  style={{
+                    width: '2rem',
+                    height: '2rem',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.8rem',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    boxShadow: 'none',
+                    outline: 'none',
+                  }}
+                  title="Open Room Chat"
+                >
+                  💬
+                </button>
+              </div>
+            )}
+
             <button className="ib" aria-label="Cast">
               <svg className="i">
                 <use href="#cast" />
@@ -1129,11 +1354,24 @@ export const PlayerPage: React.FC = () => {
             </button>
           </header>
           <div className="mid">
-            <button className="ib rw" id="bk" aria-label="Back 10 seconds">
-              <svg className="i">
-                <use href="#rw" />
-              </svg>
-            </button>
+            {roomId ? (
+              <button 
+                className="ib" 
+                id="bk" 
+                aria-label="React Fire" 
+                title="React 🔥"
+                style={{ fontSize: '1.75rem', lineHeight: 1, boxShadow: 'none', border: 'none', background: 'transparent' }}
+              >
+                🔥
+              </button>
+            ) : (
+              <button className="ib rw" id="bk" aria-label="Back 10 seconds">
+                <svg className="i">
+                  <use href="#rw" />
+                </svg>
+              </button>
+            )}
+
             <button className="ib big" id="pp" aria-label="Play or pause">
               <svg className="i xl">
                 <use href="#play" />
@@ -1142,11 +1380,24 @@ export const PlayerPage: React.FC = () => {
                 <use href="#pause" />
               </svg>
             </button>
-            <button className="ib fw" id="fw" aria-label="Forward 10 seconds">
-              <svg className="i">
-                <use href="#fw" />
-              </svg>
-            </button>
+
+            {roomId ? (
+              <button 
+                className="ib" 
+                id="fw" 
+                aria-label="React Popcorn" 
+                title="React 🍿"
+                style={{ fontSize: '1.75rem', lineHeight: 1, boxShadow: 'none', border: 'none', background: 'transparent' }}
+              >
+                🍿
+              </button>
+            ) : (
+              <button className="ib fw" id="fw" aria-label="Forward 10 seconds">
+                <svg className="i">
+                  <use href="#fw" />
+                </svg>
+              </button>
+            )}
           </div>
           <div className="bot">
             <div className="pr">

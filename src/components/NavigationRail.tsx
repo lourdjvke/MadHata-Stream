@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext.tsx';
 
 interface NavigationRailProps {
   onHomeClick?: () => void;
+  hideOnMobile?: boolean;
 }
 
-export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) => {
+export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick, hideOnMobile = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, logout } = useAuth();
@@ -71,7 +72,11 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
 
   return (
     <>
-      <nav className="rail" aria-label="Main">
+      <nav
+        className={`rail ${hideOnMobile ? 'hide-mobile hidden md:flex' : ''}`}
+        data-hide-mobile={hideOnMobile ? 'true' : undefined}
+        aria-label="Main"
+      >
         <div
           className="logo"
           onClick={() => navigate('/')}
@@ -246,6 +251,31 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({ onHomeClick }) =
                 <use href="#user" />
               </svg>
               <span>View Profile</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowProfileMenu(false);
+                navigate('/stream-rooms');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                width: '100%',
+                padding: '0.6rem 0.8rem',
+                borderRadius: '0.6rem',
+                background: 'rgba(147, 51, 234, 0.2)',
+                border: '1px solid rgba(147, 51, 234, 0.4)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                color: '#fff',
+                textAlign: 'left',
+              }}
+            >
+              <span>🍿</span>
+              <span>Stream Rooms</span>
             </button>
 
             <button
