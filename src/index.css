@@ -51,13 +51,11 @@ button, input, select, textarea {
   background: none;
   border: 0;
   outline: none !important;
-  box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
 }
 
 *:focus, *:focus-visible, *:focus-within {
   outline: none !important;
-  box-shadow: none !important;
 }
 
 button {

@@ -68,7 +68,7 @@ export const MovieSelectorModal: React.FC<MovieSelectorModalProps> = ({
 
       {/* Modal / Bottom Sheet Box */}
       <div 
-        className="relative z-10 w-full md:max-w-xl max-h-[88vh] md:max-h-[82vh] bg-[#10131c] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden"
+        className="relative z-10 w-full md:max-w-xl max-h-[88vh] md:max-h-[82vh] bg-[#10131c] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden pb-4 md:pb-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile handle indicator */}
@@ -93,7 +93,7 @@ export const MovieSelectorModal: React.FC<MovieSelectorModalProps> = ({
         </div>
 
         {/* Search Input Bar */}
-        <div className="px-5 pt-3 pb-2">
+        <div className="px-5 pt-4 pb-2">
           <div className="relative flex items-center bg-white/5 rounded-xl px-3.5 py-2.5">
             <svg className="w-4 h-4 text-white/40 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -122,7 +122,7 @@ export const MovieSelectorModal: React.FC<MovieSelectorModalProps> = ({
 
         {/* Genre Pills Row */}
         {!query && (
-          <div className="px-5 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-white/5">
+          <div className="px-5 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-white/5">
             {CATEGORIES.map((cat) => {
               const active = selectedGenre === cat.slug;
               return (
@@ -130,11 +130,15 @@ export const MovieSelectorModal: React.FC<MovieSelectorModalProps> = ({
                   key={cat.slug}
                   type="button"
                   onClick={() => setSelectedGenre(cat.slug)}
-                  className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-all ${
-                    active 
-                      ? 'bg-purple-600 text-white font-medium shadow-sm' 
-                      : 'bg-white/5 hover:bg-white/10 text-white/70'
-                  }`}
+                  style={{
+                    background: active ? 'linear-gradient(135deg, #7928ca 0%, #9333ea 100%)' : 'rgba(255, 255, 255, 0.06)',
+                    color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.7)',
+                    border: active ? '2px solid #d8b4fe' : '1px solid rgba(255, 255, 255, 0.1)',
+                    fontWeight: active ? 700 : 500,
+                    transform: active ? 'scale(1.05)' : 'scale(1)',
+                    boxShadow: active ? '0 4px 12px rgba(121, 40, 202, 0.4)' : 'none',
+                  }}
+                  className="px-3.5 py-1.5 text-xs rounded-full whitespace-nowrap transition-all cursor-pointer"
                 >
                   <span className="mr-1">{cat.icon}</span>
                   {cat.label}

@@ -29,7 +29,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
   const [question, setQuestion] = useState('What should we watch next?');
   const [candidates, setCandidates] = useState<CandidateMovie[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [timeMode, setTimeMode] = useState<'immediate' | '15m' | '30m' | '1h'>('immediate');
+  const [timeMode, setTimeMode] = useState<'immediate' | '15m' | '30m' | '1h' | '2h'>('immediate');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -55,6 +55,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
       if (timeMode === '15m') scheduledStartTime = now + 15 * 60 * 1000;
       else if (timeMode === '30m') scheduledStartTime = now + 30 * 60 * 1000;
       else if (timeMode === '1h') scheduledStartTime = now + 60 * 60 * 1000;
+      else if (timeMode === '2h') scheduledStartTime = now + 120 * 60 * 1000;
 
       await createMoviePoll(
         roomId,
@@ -78,12 +79,12 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
       <div className="absolute inset-0" onClick={onClose} />
 
       <div 
-        className="relative z-10 w-full md:max-w-lg bg-[#12151f] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl p-5 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto"
+        className="relative z-10 w-full md:max-w-lg bg-[#12151f] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto pb-6 md:pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
             <span className="text-xl">🗳️</span>
             <div>
               <h3 className="font-bold text-base text-white">Create Movie Poll</h3>
@@ -99,10 +100,10 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleCreatePoll} className="mt-4 flex flex-col gap-4">
+        <form onSubmit={handleCreatePoll} className="mt-4 flex flex-col gap-5">
           {/* Question */}
           <div>
-            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
               Poll Question
             </label>
             <input
@@ -110,7 +111,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="e.g. Which movie for movie night?"
-              className="w-full bg-white/5 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0"
+              className="w-full bg-white/5 rounded-xl px-4 py-3 text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0"
               style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
               required
             />
@@ -118,7 +119,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
           {/* Candidates */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">
                 Candidate Shows ({candidates.length}/3)
               </label>
@@ -138,14 +139,14 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPickerOpen(true)}
-                className="w-full py-6 bg-white/5 rounded-xl flex flex-col items-center justify-center text-white/50 hover:text-white/80 transition-colors border-0 outline-none"
+                className="w-full py-7 bg-white/5 rounded-xl flex flex-col items-center justify-center text-white/50 hover:text-white/80 transition-colors border-0 outline-none"
                 style={{ border: 'none', outline: 'none' }}
               >
-                <span className="text-2xl mb-1">🎬</span>
+                <span className="text-2xl mb-1.5">🎬</span>
                 <span className="text-xs font-medium">Click to select at least 2 movies to compare</span>
               </button>
             ) : (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {candidates.map((c, idx) => (
                   <div key={idx} className="relative aspect-[2/3] rounded-lg overflow-hidden border border-white/10 bg-black/40 group">
                     <img src={c.poster} alt={c.title} className="w-full h-full object-cover" />
@@ -178,29 +179,37 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
           {/* Start Time Schedule */}
           <div>
-            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
               Stream Schedule
             </label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5">
               {[
                 { id: 'immediate', label: 'Now' },
-                { id: '15m', label: 'In 15m' },
-                { id: '30m', label: 'In 30m' },
-                { id: '1h', label: 'In 1 hr' },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setTimeMode(opt.id as any)}
-                  className={`py-2 text-xs rounded-xl font-medium transition-all ${
-                    timeMode === opt.id
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 text-white/70'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { id: '15m', label: '15m' },
+                { id: '30m', label: '30m' },
+                { id: '1h', label: '1 hr' },
+                { id: '2h', label: '2 hrs' },
+              ].map((opt) => {
+                const active = timeMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setTimeMode(opt.id as any)}
+                    style={{
+                      background: active ? '#7928ca' : 'rgba(255, 255, 255, 0.06)',
+                      color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.6)',
+                      border: active ? '2px solid #d8b4fe' : '1px solid rgba(255, 255, 255, 0.1)',
+                      fontWeight: active ? 700 : 500,
+                      transform: active ? 'scale(1.04)' : 'scale(1)',
+                      boxShadow: active ? '0 4px 12px rgba(121, 40, 202, 0.4)' : 'none',
+                    }}
+                    className="py-2 px-1 text-xs rounded-xl transition-all text-center cursor-pointer"
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -209,13 +218,26 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
             <button
               type="submit"
               disabled={submitting || candidates.length < 2}
-              className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
-                candidates.length >= 2 && !submitting
-                  ? 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer'
-                  : 'bg-white/10 text-white/40 cursor-not-allowed'
-              }`}
+              style={{
+                background: (candidates.length >= 2 && !submitting) 
+                  ? 'linear-gradient(135deg, #7928ca 0%, #9333ea 100%)' 
+                  : 'rgba(255, 255, 255, 0.08)',
+                color: (candidates.length >= 2 && !submitting) ? '#ffffff' : 'rgba(255, 255, 255, 0.35)',
+                border: (candidates.length >= 2 && !submitting) ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.05)',
+                cursor: (candidates.length >= 2 && !submitting) ? 'pointer' : 'not-allowed',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.85rem',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                boxShadow: (candidates.length >= 2 && !submitting) ? '0 8px 24px -4px rgba(121, 40, 202, 0.5)' : 'none',
+              }}
             >
-              {submitting ? 'Creating Poll...' : candidates.length < 2 ? 'Add at least 2 shows' : 'Launch Poll to Room'}
+              {submitting ? 'Creating Poll...' : candidates.length < 2 ? 'Select at least 2 shows above' : '🚀 Launch Poll to Room'}
             </button>
           </div>
         </form>

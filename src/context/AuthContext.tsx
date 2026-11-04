@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { 
   User, 
   onAuthStateChanged, 
-  signOut as fbSignOut 
+  signOut as fbSignOut,
+  signInAnonymously
 } from 'firebase/auth';
 import { ref, get, set, update, DataSnapshot } from 'firebase/database';
 import { auth, rtdb } from '../firebase.ts';
@@ -15,6 +16,7 @@ export interface UserProfile {
   c2: string;
   updatedAt?: number;
   createdAt?: number;
+  isGuest?: boolean;
 }
 
 export interface CachedAuthData {
@@ -32,6 +34,7 @@ interface AuthContextType {
   loading: boolean;
   isOffline: boolean;
   logout: () => Promise<void>;
+  loginAsGuest: () => Promise<User>;
   updateUserProfile: (profileData: Partial<UserProfile>) => Promise<void>;
 }
 
@@ -115,6 +118,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
   logout: async () => {},
+  loginAsGuest: async () => ({} as User),
   updateUserProfile: async () => {},
 });
 
@@ -221,13 +225,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else if (profileRef.current) {
             fetchedProfile = profileRef.current;
           } else {
+            const isAnon = currentUser.isAnonymous;
             const defaultProfile: UserProfile = {
-              name: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+              name: isAnon
+                ? `Guest-${currentUser.uid.slice(0, 4).toUpperCase()}`
+                : currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
               email: currentUser.email || '',
               avatarIndex: 0,
               c1: AVATAR_PALETTE[0][0],
               c2: AVATAR_PALETTE[0][1],
               createdAt: Date.now(),
+              isGuest: isAnon,
             };
             if (navigator.onLine) {
               set(userRefDb, defaultProfile).catch(() => {});
@@ -236,12 +244,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err) {
           console.warn('Error fetching user profile from RTDB (using cache/fallback):', err);
+          const isAnon = currentUser.isAnonymous;
           fetchedProfile = profileRef.current || {
-            name: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+            name: isAnon
+              ? `Guest-${currentUser.uid.slice(0, 4).toUpperCase()}`
+              : currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
             email: currentUser.email || '',
             avatarIndex: 0,
             c1: AVATAR_PALETTE[0][0],
             c2: AVATAR_PALETTE[0][1],
+            isGuest: isAnon,
           };
         }
 
@@ -346,6 +358,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const loginAsGuest = async (): Promise<User> => {
+    const res = await signInAnonymously(auth);
+    return res.user;
+  };
+
   const logout = async () => {
     try {
       await fbSignOut(auth);
@@ -378,7 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isOffline, logout, updateUserProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, isOffline, logout, loginAsGuest, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

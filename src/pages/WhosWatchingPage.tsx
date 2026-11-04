@@ -501,7 +501,9 @@ export const WhosWatchingPage: React.FC = () => {
 
   // Start watching navigation
   const handleStartWatching = () => {
-    const from = (location.state as { from?: string })?.from || '/';
+    const params = new URLSearchParams(location.search);
+    const redirectUrl = params.get('redirect');
+    const from = redirectUrl || (location.state as { from?: string })?.from || '/';
     navigate(from, { replace: true });
   };
 

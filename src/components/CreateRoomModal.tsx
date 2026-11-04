@@ -45,12 +45,12 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
       <div className="absolute inset-0" onClick={onClose} />
 
       <div 
-        className="relative z-10 w-full md:max-w-md bg-[#12151f] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl p-5 shadow-2xl flex flex-col"
+        className="relative z-10 w-full md:max-w-md bg-[#12151f] text-white border-t md:border border-white/10 rounded-t-3xl md:rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col pb-6 md:pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
             <span className="text-xl">🍿</span>
             <div>
               <h3 className="font-bold text-base text-white">Create Stream Room</h3>
@@ -66,10 +66,10 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
           {/* Room Name */}
           <div>
-            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
               Room Name
             </label>
             <input
@@ -77,7 +77,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Midnight Horror Club, Anime Night..."
-              className="w-full bg-white/5 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0"
+              className="w-full bg-white/5 rounded-xl px-4 py-3 text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0"
               style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
               required
               autoFocus
@@ -86,7 +86,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 
           {/* Room Poster / Display Image */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">
                 Room Display Image
               </label>
@@ -102,7 +102,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 
             <div 
               onClick={() => setPickerOpen(true)}
-              className="group cursor-pointer flex items-center gap-3 p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all border-0 outline-none"
+              className="group cursor-pointer flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border-0 outline-none"
               style={{ border: 'none', outline: 'none' }}
             >
               <div className="w-14 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-black/40 border border-white/10">
@@ -110,7 +110,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-white truncate">{posterTitle}</p>
-                <p className="text-[11px] text-purple-400 mt-0.5">Click to search movies or genres (Horror, Action, etc.)</p>
+                <p className="text-[11px] text-purple-400 mt-1">Click to search movies or genres (Horror, Action, etc.)</p>
               </div>
               <span className="text-xs text-white/40 group-hover:text-white mr-1">›</span>
             </div>
@@ -121,13 +121,26 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             <button
               type="submit"
               disabled={creating || !name.trim()}
-              className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
-                name.trim() && !creating
-                  ? 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer'
-                  : 'bg-white/10 text-white/40 cursor-not-allowed'
-              }`}
+              style={{
+                background: (name.trim() && !creating) 
+                  ? 'linear-gradient(135deg, #7928ca 0%, #9333ea 100%)' 
+                  : 'rgba(255, 255, 255, 0.08)',
+                color: (name.trim() && !creating) ? '#ffffff' : 'rgba(255, 255, 255, 0.35)',
+                border: (name.trim() && !creating) ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.05)',
+                cursor: (name.trim() && !creating) ? 'pointer' : 'not-allowed',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.85rem',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                boxShadow: (name.trim() && !creating) ? '0 8px 24px -4px rgba(121, 40, 202, 0.5)' : 'none',
+              }}
             >
-              {creating ? 'Creating Room...' : 'Create Stream Room'}
+              {creating ? 'Creating Stream Room...' : '🍿 Create Stream Room'}
             </button>
           </div>
         </form>

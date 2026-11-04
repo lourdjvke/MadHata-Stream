@@ -22,7 +22,8 @@ export const StreamRoomsPage: React.FC = () => {
   const navigate = useNavigate();
   const { roomId: routeRoomId } = useParams<{ roomId?: string }>();
   const [searchParams] = useSearchParams();
-  const { user, profile } = useAuth();
+  const { user, profile, loginAsGuest } = useAuth();
+  const [loggingInGuest, setLoggingInGuest] = useState(false);
 
   const [userRooms, setUserRooms] = useState<UserRoomRecord[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(routeRoomId || null);
@@ -55,6 +56,27 @@ export const StreamRoomsPage: React.FC = () => {
     }
   }, [routeRoomId]);
 
+  // Handle guest login
+  const handleGuestLogin = async () => {
+    if (loggingInGuest) return;
+    setLoggingInGuest(true);
+    try {
+      const guestUser = await loginAsGuest();
+      if (activeRoomId) {
+        await joinStreamRoom(activeRoomId, guestUser, {
+          name: `Guest-${guestUser.uid.slice(0, 4).toUpperCase()}`,
+          avatarIndex: 0,
+          c1: '#8a6bff',
+          c2: '#3b2fd0',
+        });
+      }
+    } catch (err) {
+      console.error('Failed guest login:', err);
+    } finally {
+      setLoggingInGuest(false);
+    }
+  };
+
   // 1. Listen to user's personal rooms list
   useEffect(() => {
     if (!user?.uid) return;
@@ -70,9 +92,9 @@ export const StreamRoomsPage: React.FC = () => {
     return () => unsub();
   }, [user?.uid]);
 
-  // 2. Listen to active room
+  // 2. Listen to active room (runs for guests too to display room preview & polls)
   useEffect(() => {
-    if (!activeRoomId || !user?.uid) {
+    if (!activeRoomId) {
       setActiveRoom(null);
       return;
     }
@@ -84,14 +106,14 @@ export const StreamRoomsPage: React.FC = () => {
       }
       setActiveRoom(room);
 
-      // If user navigated via link and isn't recorded as member yet, auto-join
-      if (!room.members || !room.members[user.uid]) {
+      // If user is authenticated and isn't recorded as member yet, auto-join
+      if (user?.uid && (!room.members || !room.members[user.uid])) {
         await joinStreamRoom(activeRoomId, user, profile);
       }
     });
 
     return () => unsub();
-  }, [activeRoomId, user?.uid, profile]);
+  }, [activeRoomId, user, profile]);
 
   // Auto scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -151,6 +173,7 @@ export const StreamRoomsPage: React.FC = () => {
   const onlineCount = membersList.filter((m) => m.online !== false).length;
   const messagesList = activeRoom?.messages ? Object.values(activeRoom.messages).sort((a, b) => a.timestamp - b.timestamp) : [];
   const pollsList = activeRoom?.polls ? Object.values(activeRoom.polls).sort((a, b) => b.createdAt - a.createdAt) : [];
+  const activePoll = pollsList.find((p) => p.active) || pollsList[0];
   const reactionsList = activeRoom?.reactions ? Object.values(activeRoom.reactions).sort((a, b) => b.timestamp - a.timestamp) : [];
 
   return (
@@ -387,11 +410,11 @@ export const StreamRoomsPage: React.FC = () => {
               <div className="flex-1 flex flex-col h-full overflow-hidden">
                 <div 
                   ref={chatScrollRef}
-                  className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar"
+                  className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 no-scrollbar"
                 >
                   {/* Countdown / Welcome hero card if in voting or scheduled state */}
                   {activeRoom?.scheduledStartTime && activeRoom.status === 'scheduled' && (
-                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-center flex flex-col items-center">
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-center flex flex-col items-center mb-4">
                       <span className="text-2xl mb-1">⏳</span>
                       <h4 className="text-sm font-bold text-white">Stream Starts In:</h4>
                       <p className="text-xl font-mono font-bold text-purple-400 mt-1">
@@ -437,7 +460,7 @@ export const StreamRoomsPage: React.FC = () => {
                     return (
                       <div 
                         key={poll.id}
-                        className="p-4 rounded-xl bg-[#141724] border border-white/10 space-y-3"
+                        className="p-4 rounded-xl bg-[#141724] border border-white/10 my-4 space-y-3"
                       >
                         <div className="flex items-start justify-between">
                           <div>
@@ -528,8 +551,18 @@ export const StreamRoomsPage: React.FC = () => {
                     );
                   })}
 
-                  {/* Messages Feed (Discord Flat Style, No Bubbles, No Drop Shadows) */}
-                  {messagesList.length === 0 ? (
+                  {/* Messages Feed (Protected from unauthenticated viewers) */}
+                  {!user ? (
+                    <div className="py-16 text-center text-white/50 text-xs px-4">
+                      <span className="text-3xl mb-2.5 block">🔒</span>
+                      <p className="font-semibold text-white/90 text-sm mb-1">
+                        Sign in to view chat messages
+                      </p>
+                      <p className="max-w-xs mx-auto text-white/50 leading-relaxed">
+                        Chat details are private to room members. Sign in or continue as guest below to view chat and participate.
+                      </p>
+                    </div>
+                  ) : messagesList.length === 0 ? (
                     <div className="py-12 text-center text-white/40 text-xs">
                       No messages yet. Say hello or launch a movie poll!
                     </div>
@@ -537,8 +570,8 @@ export const StreamRoomsPage: React.FC = () => {
                     messagesList.map((msg) => {
                       if (msg.type === 'system') {
                         return (
-                          <div key={msg.id} className="flex items-center justify-center my-2">
-                            <span className="text-[11px] text-purple-300/80 bg-purple-950/30 px-3 py-1 rounded-full border border-purple-500/10">
+                          <div key={msg.id} className="flex items-center justify-center my-5 py-1">
+                            <span className="text-[11px] font-medium text-purple-300/90 bg-purple-950/50 px-4 py-1.5 rounded-full border border-purple-500/20 shadow-sm text-center tracking-wide">
                               {msg.text}
                             </span>
                           </div>
@@ -555,10 +588,10 @@ export const StreamRoomsPage: React.FC = () => {
                       });
 
                       return (
-                        <div key={msg.id} className="flex items-start gap-3 group py-0.5">
+                        <div key={msg.id} className="flex items-start gap-3 my-3 px-1.5 py-1 hover:bg-white/[0.02] rounded-lg transition-colors">
                           {/* Circular User Avatar */}
                           <div
-                            className="w-8 h-8 rounded-full flex-shrink-0 text-white font-bold text-xs flex items-center justify-center select-none"
+                            className="w-8 h-8 rounded-full flex-shrink-0 text-white font-bold text-xs flex items-center justify-center select-none shadow-sm"
                             style={{ background: avatarGradient }}
                           >
                             {(msg.senderName || 'U').charAt(0).toUpperCase()}
@@ -566,7 +599,7 @@ export const StreamRoomsPage: React.FC = () => {
 
                           {/* Message Body */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2">
+                            <div className="flex items-baseline gap-2 mb-1">
                               <span className="text-xs font-semibold text-white/90">
                                 {msg.senderName}
                               </span>
@@ -574,8 +607,8 @@ export const StreamRoomsPage: React.FC = () => {
                                 {timeStr}
                               </span>
                             </div>
-                            {/* Discord flat text, no bubbles, no box-shadow */}
-                            <p className="text-xs text-white/80 leading-relaxed break-words whitespace-pre-wrap mt-0.5">
+                            {/* Discord flat text, no bubbles */}
+                            <p className="text-xs md:text-sm text-white/85 leading-relaxed break-words whitespace-pre-wrap">
                               {msg.text}
                             </p>
                           </div>
@@ -586,15 +619,16 @@ export const StreamRoomsPage: React.FC = () => {
                 </div>
 
                 {/* Bottom Bar: Poll icon button, Chat input, airplane outline send icon */}
-                <div className="p-3 border-t border-white/5 bg-[#121422] flex-shrink-0">
-                  <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                <div className="p-3 md:p-3.5 border-t border-white/5 bg-[#121422] flex-shrink-0">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-2.5">
                     {/* Poll Icon Button */}
                     <button
                       type="button"
                       onClick={() => setPollModalOpen(true)}
+                      disabled={!user}
                       aria-label="Create Poll"
                       title="Create Movie Poll"
-                      className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white flex items-center justify-center text-lg transition-colors flex-shrink-0"
+                      className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white flex items-center justify-center text-lg transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       🗳️
                     </button>
@@ -605,8 +639,9 @@ export const StreamRoomsPage: React.FC = () => {
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        placeholder={`Message #${activeRoom?.name || 'room'}...`}
-                        className="w-full bg-transparent text-xs md:text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0"
+                        disabled={!user}
+                        placeholder={!user ? "Sign in or continue as guest to message..." : `Message #${activeRoom?.name || 'room'}...`}
+                        className="w-full bg-transparent text-xs md:text-sm text-white placeholder-white/40 border-0 outline-none shadow-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
                         style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
                       />
                     </div>
@@ -640,34 +675,45 @@ export const StreamRoomsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Reaction History Slide-out Drawer */}
+              {/* Backdrop for Overlay Drawers */}
+              {(showReactionsHistory || membersDrawerOpen) && (
+                <div
+                  className="fixed md:absolute inset-0 bg-black/60 z-40 animate-in fade-in duration-200 backdrop-blur-[2px]"
+                  onClick={() => {
+                    setShowReactionsHistory(false);
+                    setMembersDrawerOpen(false);
+                  }}
+                />
+              )}
+
+              {/* Reaction History Smooth Slide-out Overlay Drawer */}
               {showReactionsHistory && (
-                <div className="w-64 border-l border-white/5 bg-[#11131f] flex flex-col h-full animate-in slide-in-from-right duration-200">
-                  <div className="p-3 border-b border-white/5 flex items-center justify-between">
+                <div className="fixed md:absolute right-0 top-0 bottom-0 z-50 w-80 max-w-[85vw] bg-[#11131f] border-l border-white/10 shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
                       Reaction History
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowReactionsHistory(false)}
-                      className="text-white/50 hover:text-white text-xs"
+                      className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white text-xs transition-colors"
                     >
                       ✕
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
                     {reactionsList.length === 0 ? (
-                      <p className="text-xs text-white/40 text-center py-8">
+                      <p className="text-xs text-white/40 text-center py-10">
                         No scene reactions recorded yet. Use reaction emojis while streaming!
                       </p>
                     ) : (
                       reactionsList.map((rx) => (
-                        <div key={rx.id} className="p-2 rounded-lg bg-white/5 border border-white/5 text-xs">
-                          <div className="flex items-center justify-between mb-1">
+                        <div key={rx.id} className="p-3 rounded-xl bg-white/5 border border-white/5 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
                             <span className="font-semibold text-white/90">{rx.userName}</span>
-                            <span className="text-[10px] font-mono text-purple-400">{rx.sceneTime}</span>
+                            <span className="text-[10px] font-mono text-purple-400 font-semibold">{rx.sceneTime}</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2 pt-0.5">
                             <span className="text-base">{rx.emoji}</span>
                             <span className="text-[11px] text-white/60 truncate">{rx.mediaTitle}</span>
                           </div>
@@ -678,42 +724,42 @@ export const StreamRoomsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Members Drawer */}
+              {/* Members Smooth Slide-out Overlay Drawer */}
               {membersDrawerOpen && (
-                <div className="w-64 border-l border-white/5 bg-[#11131f] flex flex-col h-full animate-in slide-in-from-right duration-200">
-                  <div className="p-3 border-b border-white/5 flex items-center justify-between">
+                <div className="fixed md:absolute right-0 top-0 bottom-0 z-50 w-80 max-w-[85vw] bg-[#11131f] border-l border-white/10 shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
                       Room Members ({membersList.length})
                     </span>
                     <button
                       type="button"
                       onClick={() => setMembersDrawerOpen(false)}
-                      className="text-white/50 hover:text-white text-xs"
+                      className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white text-xs transition-colors"
                     >
                       ✕
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {membersList.map((member) => (
                       <div
                         key={member.uid}
-                        className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-colors"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <div className="w-7 h-7 rounded-full bg-purple-600/30 text-white font-bold text-xs flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-purple-600/30 text-white font-bold text-xs flex items-center justify-center">
                               {member.name.charAt(0).toUpperCase()}
                             </div>
                             <span
-                              className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#11131f] ${
+                              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#11131f] ${
                                 member.online !== false ? 'bg-emerald-400' : 'bg-white/30'
                               }`}
                             />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-medium text-white truncate">{member.name}</p>
+                            <p className="text-xs font-semibold text-white truncate">{member.name}</p>
                             {member.isHost && (
-                              <p className="text-[9px] text-purple-400 font-semibold uppercase">Host</p>
+                              <p className="text-[9px] text-purple-400 font-bold uppercase tracking-wider">Host</p>
                             )}
                           </div>
                         </div>
@@ -723,7 +769,7 @@ export const StreamRoomsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => activeRoom && removeRoomMember(activeRoom.id, member.uid)}
-                            className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20"
+                            className="text-[10px] text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 font-medium"
                             title="Remove member"
                           >
                             Remove
@@ -734,7 +780,7 @@ export const StreamRoomsPage: React.FC = () => {
                   </div>
 
                   {/* Leave Room Button */}
-                  <div className="p-3 border-t border-white/5">
+                  <div className="p-4 border-t border-white/10">
                     <button
                       type="button"
                       onClick={async () => {
@@ -744,7 +790,7 @@ export const StreamRoomsPage: React.FC = () => {
                           navigate('/stream-rooms');
                         }
                       }}
-                      className="w-full py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-semibold transition-colors"
+                      className="w-full py-2.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold transition-colors text-center"
                     >
                       Leave Room
                     </button>
@@ -787,6 +833,94 @@ export const StreamRoomsPage: React.FC = () => {
           user={user}
           profile={profile}
         />
+      )}
+
+      {/* Unauthenticated Stream Room Invite Overlay */}
+      {!user && activeRoomId && (
+        <div className="fixed inset-0 z-[110] bg-black/75 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 animate-in fade-in duration-200">
+          {/* Box: Floating Bottom Sheet on Mobile (curved edges, floating without touching edges), Pop-up Modal on Desktop */}
+          <div className="w-[calc(100%-2rem)] md:w-full md:max-w-md my-4 md:my-0 mx-auto bg-[#121522] border border-white/10 rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col text-center text-white relative">
+            
+            {/* Room Header Info */}
+            <div className="flex items-center gap-3 mb-4 p-2.5 rounded-xl bg-white/5 border border-white/5 text-left">
+              <div className="w-10 h-14 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
+                <img
+                  src={activeRoom?.poster || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&auto=format&fit=crop&q=80'}
+                  alt={activeRoom?.name || 'Watchroom'}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs md:text-sm font-bold text-white truncate">{activeRoom?.name || 'Watchroom'}</h3>
+                <p className="text-[11px] text-purple-400 font-semibold mt-0.5">Stream Room Invite</p>
+              </div>
+            </div>
+
+            {/* Movie Poll Preview (Shows candidate movie titles and vote counts) */}
+            {activePoll && (
+              <div className="mb-4 text-left bg-white/5 rounded-xl p-3 border border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
+                    🗳️ Movie Poll
+                  </span>
+                  <span className="text-[10px] font-medium text-white/50">
+                    {activePoll.active ? 'Active Voting' : 'Poll Results'}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-white mb-2 line-clamp-1">{activePoll.question}</p>
+                
+                {/* Candidate Movie Options and Amount of Votes */}
+                <div className="space-y-1.5">
+                  {activePoll.options.map((opt, idx) => {
+                    const votesCount = opt.votes ? Object.keys(opt.votes).length : 0;
+                    return (
+                      <div 
+                        key={opt.id} 
+                        className="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-black/40 border border-white/5"
+                      >
+                        <span className="font-medium text-white/90 truncate mr-2">
+                          {opt.title || `Movie ${idx + 1}`}
+                        </span>
+                        <span className="text-[11px] font-mono text-purple-300 font-bold flex-shrink-0">
+                          {votesCount} {votesCount === 1 ? 'vote' : 'votes'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Title & Subtitle */}
+            <h2 className="text-base md:text-lg font-bold text-white mb-1">
+              Sign in to join
+            </h2>
+            <p className="text-xs text-white/60 mb-5 leading-relaxed">
+              Join <span className="text-white font-semibold">{activeRoom?.name || 'this stream room'}</span> to vote on movie polls, chat live, and watch together.
+            </p>
+
+            {/* Primary Action Button: Pill-shaped */}
+            <button
+              type="button"
+              onClick={() => navigate(`/whos-watching?redirect=${encodeURIComponent(`/stream-room/${activeRoomId}`)}`)}
+              className="w-full py-2.5 md:py-3 px-6 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs md:text-sm shadow-lg transition-all active:scale-95 cursor-pointer mb-3"
+            >
+              Sign in to join
+            </button>
+
+            {/* Bottom Link: Plain, non-designed underlined text */}
+            <div>
+              <button
+                type="button"
+                onClick={handleGuestLogin}
+                disabled={loggingInGuest}
+                className="text-xs text-white/60 hover:text-white underline cursor-pointer border-0 outline-none bg-transparent transition-colors"
+              >
+                {loggingInGuest ? 'Joining as guest...' : 'Continue as guest'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

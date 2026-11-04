@@ -17,6 +17,49 @@ interface TasteItem {
 
 const API_BASE = 'https://chartdrama-api.levity-build.workers.dev';
 
+const FALLBACK_SHORTS: TasteItem[] = [
+  {
+    slug: 'ceo-secret-bride',
+    title: 'The CEO Secret Bride',
+    poster: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+    streamUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
+    format: 'mp4',
+    episodesCount: 68,
+  },
+  {
+    slug: 'revenge-of-the-heiress',
+    title: 'Revenge of the Heiress',
+    poster: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
+    streamUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
+    format: 'mp4',
+    episodesCount: 52,
+  },
+  {
+    slug: 'billionaire-undercover',
+    title: 'Billionaire Undercover',
+    poster: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+    streamUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
+    format: 'mp4',
+    episodesCount: 80,
+  },
+  {
+    slug: 'double-life-husband',
+    title: 'My Husband Double Life',
+    poster: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&auto=format&fit=crop&q=80',
+    streamUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
+    format: 'mp4',
+    episodesCount: 45,
+  },
+  {
+    slug: 'mafia-king-redemption',
+    title: 'The Mafia King Redemption',
+    poster: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600&auto=format&fit=crop&q=80',
+    streamUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
+    format: 'mp4',
+    episodesCount: 90,
+  },
+];
+
 export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChange }) => {
   const navigate = useNavigate();
   const tasteRef = useRef<HTMLElement>(null);
@@ -57,11 +100,15 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
     async function loadTrendingShorts() {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/trending`);
-        const data = await res.json();
+        const res = await fetch(`${API_BASE}/trending`).catch(() => null);
+        if (!res || !res.ok) {
+          if (isMounted) setItems(FALLBACK_SHORTS);
+          return;
+        }
+        const data = await res.json().catch(() => null);
 
-        if (!res.ok || !data.success || !Array.isArray(data.results) || data.results.length === 0) {
-          if (isMounted) setItems([]);
+        if (!data || !data.success || !Array.isArray(data.results) || data.results.length === 0) {
+          if (isMounted) setItems(FALLBACK_SHORTS);
           return;
         }
 
@@ -72,9 +119,10 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         await Promise.all(
           topShorts.map(async (short: any) => {
             try {
-              const dRes = await fetch(`${API_BASE}/details?slug=${encodeURIComponent(short.slug)}`);
-              const dData = await dRes.json();
-              if (dRes.ok && dData.success && Array.isArray(dData.downloads) && dData.downloads.length > 0) {
+              const dRes = await fetch(`${API_BASE}/details?slug=${encodeURIComponent(short.slug)}`).catch(() => null);
+              if (!dRes || !dRes.ok) return;
+              const dData = await dRes.json().catch(() => null);
+              if (dData && dData.success && Array.isArray(dData.downloads) && dData.downloads.length > 0) {
                 const ep1 = dData.downloads[0];
                 detailedItems.push({
                   slug: short.slug,
@@ -94,16 +142,14 @@ export const TasteCarousel: React.FC<TasteCarouselProps> = ({ onTasteInViewChang
         if (isMounted) {
           if (detailedItems.length > 0) {
             setItems(detailedItems);
-            // Reset refs
             cardRefs.current = [];
             videoRefs.current = [];
           } else {
-            setItems([]);
+            setItems(FALLBACK_SHORTS);
           }
         }
-      } catch (err) {
-        console.error('Failed fetching Taste carousel shorts:', err);
-        if (isMounted) setItems([]);
+      } catch {
+        if (isMounted) setItems(FALLBACK_SHORTS);
       } finally {
         if (isMounted) setLoading(false);
       }

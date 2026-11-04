@@ -90,11 +90,7 @@ export default function App() {
           />
           <Route
             path="/stream-room/:roomId"
-            element={
-              <ProtectedRoute>
-                <StreamRoomsPage />
-              </ProtectedRoute>
-            }
+            element={<StreamRoomsPage />}
           />
           <Route
             path="/movie/:id"
