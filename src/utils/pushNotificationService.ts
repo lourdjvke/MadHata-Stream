@@ -351,3 +351,77 @@ export async function syncPushSubscriptionBackground(uid?: string): Promise<bool
   const result = await subscribeToPushNotifications(effectiveUid, interests);
   return result.savedInRtdb;
 }
+
+/**
+ * Checks for any unread/missed notifications from RTDB while the user was offline,
+ * displays them locally, and updates their status in RTDB.
+ */
+export async function syncOfflineNotifications(uid: string): Promise<void> {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+
+  try {
+    const res = await fetch(`${RTDB_BASE}/users/${encodeURIComponent(uid)}/notifications.json`);
+    if (!res.ok) return;
+    const notifs = await res.json();
+    if (!notifs) return;
+
+    const notifList = Object.values(notifs) as any[];
+    // Sort by createdAt descending
+    notifList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    // Look for notifications sent within the last 24 hours
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const registration = await getServiceWorkerRegistration();
+
+    for (const notif of notifList) {
+      if (!notif.id || (notif.createdAt && notif.createdAt < oneDayAgo)) continue;
+
+      const seenKey = `madhata_seen_notif_${notif.id}`;
+      const alreadySeen = localStorage.getItem(seenKey);
+
+      if (!alreadySeen && (notif.status === 'sent' || notif.status === 'pending')) {
+        localStorage.setItem(seenKey, '1');
+
+        // If service worker is ready and notifications are granted, show it
+        if (
+          'Notification' in window &&
+          Notification.permission === 'granted' &&
+          registration &&
+          'showNotification' in registration
+        ) {
+          try {
+            await registration.showNotification(notif.title, {
+              body: notif.body,
+              icon: notif.icon || '/pwa-192.png',
+              badge: '/pwa-192.png',
+              data: { url: notif.url || '/', notifId: notif.id },
+            });
+          } catch (e) {
+            console.warn('[PushService] Offline notification show error:', e);
+          }
+        }
+
+        // Update RTDB delivered state
+        try {
+          await fetch(`${RTDB_BASE}/users/${encodeURIComponent(uid)}/notifications/${notif.id}.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deliveredAt: Date.now(), read: true }),
+          });
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('[PushService] Error syncing offline notifications:', err);
+  }
+}
+
+/**
+ * Pings the Cloudflare Worker to check if a scheduled recommendation is due for this user.
+ */
+export async function triggerPushCheckIfDue(uid: string): Promise<void> {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+  try {
+    fetch(`${PUSH_WORKER_URL}/trigger-check?uid=${encodeURIComponent(uid)}`).catch(() => {});
+  } catch {}
+}

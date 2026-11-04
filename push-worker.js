@@ -1,6 +1,7 @@
 /**
  * MadHata Cloudflare Push Worker
- * Handles Web Push subscription registration, RTDB persistence, cron-scheduled dispatches (5x daily),
+ * Handles Web Push subscription registration, RTDB persistence, cron-scheduled dispatches,
+ * recording notifications into RTDB with status tracking ("pending" -> "sent" / "failed"),
  * and personalized movie & short drama recommendations based on user interests.
  */
 
@@ -11,6 +12,9 @@ const VAPID_SUBJECT = 'mailto:support@madhata.app';
 const RTDB_BASE = 'https://madhata-dcfef-default-rtdb.firebaseio.com';
 const TRENDING_SHORTS_URL = 'https://chartdrama-api.levity-build.workers.dev/trending';
 const CATEGORY_MEDIA_URL = 'https://media-resolver-worker.levity-build.workers.dev/category';
+
+// Minimum spacing between automatic notifications per user (2 hours)
+const MIN_NOTIFICATION_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
 // CORS response helper
 function corsResponse(body, status = 200, headers = {}) {
@@ -212,6 +216,68 @@ async function encryptPayload(payloadJson, p256dhBase64, authBase64) {
   return body;
 }
 
+// Create initial notification record in RTDB with "pending" status
+async function createNotificationRecord(uid, notificationData) {
+  const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+  const record = {
+    id: notifId,
+    uid: uid || 'anonymous',
+    title: notificationData.title || '🎬 MadHata Recommendation',
+    body: notificationData.body || 'New stream ready to watch on MadHata with zero ads!',
+    url: notificationData.url || '/',
+    icon: notificationData.icon || 'https://i.ibb.co/DDbzq5nG/Meta-AI-882313168-4033689700101698-2768700689194481107-n-20261101-055728-webp.jpg',
+    image: notificationData.image || null,
+    status: 'pending',
+    createdAt: Date.now(),
+    sentAt: null,
+    read: false,
+    error: null,
+  };
+
+  try {
+    await fetch(`${RTDB_BASE}/users/${encodeURIComponent(record.uid)}/notifications/${notifId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+    // Also save in central directory
+    await fetch(`${RTDB_BASE}/notifications/${notifId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('Failed saving initial notification record in RTDB:', e);
+  }
+
+  return { notifId, record };
+}
+
+// Update notification status in RTDB ("sent" / "failed")
+async function updateNotificationStatus(uid, notifId, status, details = {}) {
+  const updatePayload = {
+    status,
+    updatedAt: Date.now(),
+    ...(status === 'sent' ? { sentAt: Date.now() } : {}),
+    ...details,
+  };
+
+  try {
+    await fetch(`${RTDB_BASE}/users/${encodeURIComponent(uid)}/notifications/${notifId}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload),
+    });
+    await fetch(`${RTDB_BASE}/notifications/${notifId}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload),
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('Failed updating notification status in RTDB:', e);
+  }
+}
+
 // Send Web Push notification to a single subscriber
 async function sendPushToSubscriber(subscriptionRecord, notificationData) {
   const sub = subscriptionRecord.subscription;
@@ -256,19 +322,39 @@ async function sendPushToSubscriber(subscriptionRecord, notificationData) {
   }
 }
 
+// Check when user was last sent a notification to ensure nice 5x daily spacing
+async function getLastNotificationTime(uid) {
+  try {
+    const res = await fetch(`${RTDB_BASE}/users/${encodeURIComponent(uid)}/notifications.json?shallow=false`);
+    if (!res.ok) return 0;
+    const notifs = await res.json();
+    if (!notifs) return 0;
+
+    let latest = 0;
+    for (const k of Object.keys(notifs)) {
+      const n = notifs[k];
+      const t = n.sentAt || n.createdAt || 0;
+      if (t > latest) latest = t;
+    }
+    return latest;
+  } catch {
+    return 0;
+  }
+}
+
 // Pick recommendations based on subscriber preferences
 async function pickRecommendationForUser(interests, trendingShorts) {
-  const safeInterests = Array.isArray(interests) && interests.length > 0 ? interests : ['Short Drama', 'Drama'];
+  const safeInterests = Array.isArray(interests) && interests.length > 0 ? interests : ['Horror', 'Sci-Fi', 'Short Drama'];
 
-  // Check if subscriber is interested in Short Drama or vertical video
+  // Check if subscriber is interested in Short Drama or vertical video (or 40% probability)
   const wantsShorts =
-    safeInterests.some((i) => /short|drama|mini/i.test(i)) || Math.random() < 0.45;
+    safeInterests.some((i) => /short|drama|mini/i.test(i)) || Math.random() < 0.4;
 
   if (wantsShorts && trendingShorts && trendingShorts.length > 0) {
     const randomShort = trendingShorts[Math.floor(Math.random() * trendingShorts.length)];
     const synopsis = randomShort.synopsis ? randomShort.synopsis.slice(0, 95) + '...' : 'Watch the latest episodes in vertical stream!';
     return {
-      title: `✨ Trending: ${randomShort.title}`,
+      title: `✨ Trending Drama: ${randomShort.title}`,
       body: synopsis,
       url: `/shorts?slug=${encodeURIComponent(randomShort.slug || randomShort.id)}`,
       icon: randomShort.poster || 'https://i.ibb.co/DDbzq5nG/Meta-AI-882313168-4033689700101698-2768700689194481107-n-20261101-055728-webp.jpg',
@@ -276,30 +362,33 @@ async function pickRecommendationForUser(interests, trendingShorts) {
     };
   }
 
-  // Movie categories preference
-  const chosenInterest = safeInterests[Math.floor(Math.random() * safeInterests.length)] || 'Action';
-  const categoryTitles = {
-    Action: 'Adrenaline High',
-    Romance: 'Heartstrings',
-    Comedy: 'Laugh Out Loud',
-    Horror: 'Midnight Chills',
-    'Sci-Fi': 'Future Horizons',
-    Anime: 'Anime Premiere',
-    Thriller: 'Edge of Your Seat',
+  // Movie category recommendation
+  const chosenInterest = safeInterests[Math.floor(Math.random() * safeInterests.length)] || 'Horror';
+  const categoryHeaders = {
+    Action: '⚡ Adrenaline High',
+    Romance: '❤️ Heartstrings Pick',
+    Comedy: '😂 Laugh Out Loud',
+    Horror: '👻 Midnight Chills',
+    'Sci-Fi': '🚀 Future Horizons',
+    Anime: '🔥 Anime Premiere',
+    Thriller: '⚡ Edge of Your Seat',
+    Mystery: '🔍 Mystery Unfolded',
+    Animation: '🎨 Animation Premiere',
+    Drama: '🎭 High Drama Pick',
   };
 
-  const tag = categoryTitles[chosenInterest] || chosenInterest;
+  const header = categoryHeaders[chosenInterest] || `🍿 Top ${chosenInterest} Stream`;
 
   return {
-    title: `🍿 Recommended: Top ${chosenInterest} Pick`,
-    body: `New stream added to ${chosenInterest} collection. Stream now free with zero ads!`,
+    title: `🎬 MadHata: ${header}`,
+    body: `New stream added to ${chosenInterest} collection. Watch free with zero ads!`,
     url: `/search?q=${encodeURIComponent(chosenInterest)}`,
     icon: 'https://i.ibb.co/DDbzq5nG/Meta-AI-882313168-4033689700101698-2768700689194481107-n-20261101-055728-webp.jpg',
   };
 }
 
-// Core dispatch function
-async function dispatchPushNotifications(testNotification = null) {
+// Core dispatch function with RTDB status tracking ("pending" -> "sent" / "failed")
+async function dispatchPushNotifications(testNotification = null, force = false, targetUid = null) {
   // 1. Fetch subscriptions from RTDB
   const subsRes = await fetch(`${RTDB_BASE}/push_subscriptions.json`);
   if (!subsRes.ok) {
@@ -307,12 +396,19 @@ async function dispatchPushNotifications(testNotification = null) {
   }
   const subsData = await subsRes.json();
   if (!subsData) {
-    return { message: 'No active push subscriptions found in RTDB' };
+    return { message: 'No active push subscriptions found in RTDB', total: 0 };
   }
 
-  const subscribers = Object.values(subsData);
+  let subscribers = Object.values(subsData);
+  if (targetUid) {
+    subscribers = subscribers.filter((s) => s.uid === targetUid);
+  }
 
-  // 2. Fetch trending short dramas for rich recommendations
+  if (subscribers.length === 0) {
+    return { message: 'No matching subscribers found', total: 0 };
+  }
+
+  // 2. Fetch trending short dramas for recommendations
   let trendingShorts = [];
   try {
     const shortsRes = await fetch(TRENDING_SHORTS_URL);
@@ -324,32 +420,83 @@ async function dispatchPushNotifications(testNotification = null) {
     console.warn('Could not fetch trending shorts:', err);
   }
 
+  // 3. Group subscribers by UID to prevent duplicate notifications per user
+  const byUser = {};
+  for (const s of subscribers) {
+    const uid = s.uid || 'anonymous';
+    if (!byUser[uid]) byUser[uid] = [];
+    byUser[uid].push(s);
+  }
+
   const results = {
-    total: subscribers.length,
+    totalUsers: Object.keys(byUser).length,
     sent: 0,
+    skipped: 0,
     failed: 0,
-    removed: 0,
     details: [],
+    timestamp: Date.now(),
   };
 
-  for (const subscriber of subscribers) {
+  const now = Date.now();
+
+  for (const uid of Object.keys(byUser)) {
+    const userSubs = byUser[uid];
+
+    // Check last notification time unless force is requested
+    if (!force && !testNotification) {
+      const lastSentTime = await getLastNotificationTime(uid);
+      if (now - lastSentTime < MIN_NOTIFICATION_INTERVAL_MS) {
+        results.skipped++;
+        results.details.push({ uid, status: 'skipped_throttled', lastSentAgoMin: Math.round((now - lastSentTime) / 60000) });
+        continue;
+      }
+    }
+
+    const firstSub = userSubs[0];
     const notification =
       testNotification ||
-      (await pickRecommendationForUser(subscriber.interests, trendingShorts));
+      (await pickRecommendationForUser(firstSub.interests, trendingShorts));
 
-    const sendRes = await sendPushToSubscriber(subscriber, notification);
-    if (sendRes.ok) {
-      results.sent++;
-    } else {
-      results.failed++;
-      if (sendRes.gone) results.removed++;
+    // A. Write initial record to RTDB with "pending" status
+    const { notifId } = await createNotificationRecord(uid, notification);
+
+    let anySuccess = false;
+    let lastError = null;
+
+    // B. Send to all endpoints for this user
+    for (const subRecord of userSubs) {
+      const sendRes = await sendPushToSubscriber(subRecord, notification);
+      if (sendRes.ok) {
+        anySuccess = true;
+      } else {
+        lastError = sendRes.error || `Status ${sendRes.status}`;
+      }
     }
-    results.details.push({
-      uid: subscriber.uid,
-      success: sendRes.ok,
-      status: sendRes.status || sendRes.error,
-    });
+
+    // C. Update RTDB record with the resulting status
+    if (anySuccess) {
+      await updateNotificationStatus(uid, notifId, 'sent', {
+        deviceCount: userSubs.length,
+      });
+      results.sent++;
+      results.details.push({ uid, notifId, status: 'sent', title: notification.title });
+    } else {
+      await updateNotificationStatus(uid, notifId, 'failed', {
+        error: lastError || 'All user endpoints failed',
+      });
+      results.failed++;
+      results.details.push({ uid, notifId, status: 'failed', error: lastError });
+    }
   }
+
+  // D. Log the cron run to RTDB for complete audit trail
+  try {
+    await fetch(`${RTDB_BASE}/cron_runs/${now}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(results),
+    });
+  } catch {}
 
   return results;
 }
@@ -371,7 +518,7 @@ export default {
           status: 'ok',
           service: 'madhata-push-worker',
           vapidPublicKey: VAPID_PUBLIC_KEY,
-          schedule: '5 dispatches daily: 09:00, 12:00, 15:00, 18:00, 21:00 UTC',
+          schedule: 'Automated 2-hour cron cycle with 5+ daily spaced notifications',
           timestamp: new Date().toISOString(),
         })
       );
@@ -426,8 +573,8 @@ export default {
       }
     }
 
-    // Test push / manual dispatch endpoint
-    if (url.pathname === '/dispatch' || url.pathname === '/send-test-push') {
+    // Trigger cron / manual dispatch endpoint (accepts ?force=true and ?uid=...)
+    if (url.pathname === '/dispatch' || url.pathname === '/trigger-cron' || url.pathname === '/send-test-push') {
       let customNotification = null;
       if (request.method === 'POST') {
         try {
@@ -436,16 +583,39 @@ export default {
         } catch {}
       }
 
-      const summary = await dispatchPushNotifications(customNotification);
+      const force = url.searchParams.get('force') === 'true' || request.method === 'POST';
+      const targetUid = url.searchParams.get('uid');
+
+      const summary = await dispatchPushNotifications(customNotification, force, targetUid);
+      return corsResponse(JSON.stringify(summary));
+    }
+
+    // Check & trigger if due for user (called by background app worker)
+    if (url.pathname === '/trigger-check') {
+      const uid = url.searchParams.get('uid');
+      if (!uid) return corsResponse(JSON.stringify({ error: 'Missing uid' }), 400);
+
+      const summary = await dispatchPushNotifications(null, false, uid);
       return corsResponse(JSON.stringify(summary));
     }
 
     return corsResponse(JSON.stringify({ error: 'Not found' }), 404);
   },
 
-  // Cron Schedule Handler (5x daily)
+  // Cron Schedule Handler (Executed by Cloudflare every 2 hours)
   async scheduled(event, env, ctx) {
-    console.log(`[PushWorker] Cron trigger triggered at ${new Date().toISOString()}`);
-    ctx.waitUntil(dispatchPushNotifications());
+    console.log(`[PushWorker] Scheduled cron trigger fired at ${new Date().toISOString()}`);
+    ctx.waitUntil(
+      dispatchPushNotifications(null, false).catch(async (err) => {
+        console.error('[PushWorker] Scheduled dispatch error:', err);
+        try {
+          await fetch(`${RTDB_BASE}/cron_errors/${Date.now()}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: err.message || String(err), timestamp: Date.now() }),
+          });
+        } catch {}
+      })
+    );
   },
 };
